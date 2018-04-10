@@ -14,9 +14,9 @@ using namespace std;
 //TODO: fix this function and the following macro,
 // and then replace all system call invocations in the code
 int callSafeSyscall(int syscall_return_value, int code_line) {
-	if (syscall_return_value != 0) {
+	if (syscall_return_value < 0) {
 		printf("Failed on line %d with error %d - %s\n", code_line, 
-		syscall_return_value, strerror(syscall_return_value));
+		syscall_return_value, strerror(errno));
 	}
 }
 
@@ -41,7 +41,9 @@ pid_t waitForDescendant(TraceeStatus& tracee_status) {
         cout << "No more descendants to wait for!" << endl;
         return waited_pid;
     } // else, one of the descendants changed state
+
     cout << "Process #" << waited_pid << " ";
+
     if (WIFEXITED(status)) {
         tracee_status = TraceeStatus::EXITED;
         cout << "exited normally with value " << WEXITSTATUS(status);
@@ -71,31 +73,40 @@ pid_t waitForDescendant(TraceeStatus& tracee_status) {
 }
 
 int main() {
-    cout << "Tracer process id = " << getpid() << endl;
-    // pid_t child_pid = SAFE_SYSCALL(fork());
-    pid_t child_pid = fork();
-    if (child_pid == 0) { // child process
-        cout << "Tracee process id = " << getpid() << endl;
-        char* args[] = {const_cast<char*>("date"), NULL};
-        ptrace(PTRACE_TRACEME, 0, NULL, NULL);
-        execv("/bin/date", args);
-    } else { // father process
-        TraceeStatus tracee_status;
-        // for the first time, make sure the child stopped before execv
-        pid_t descendant_pid = waitForDescendant(tracee_status);
-        assert(descendant_pid == child_pid);
-        assert(tracee_status == TraceeStatus::SIGNALED);
-        // after the child has stopped, we can now set the correct options
-        ptrace(PTRACE_SETOPTIONS, child_pid, NULL, PTRACE_O_TRACESYSGOOD);
-        // and let the child resume
-        ptrace(PTRACE_SYSCALL, child_pid, NULL, NULL);
-        while (1) {
-            pid_t descendant_pid = waitForDescendant(tracee_status);
-            if (descendant_pid < 0) { // no more descendants
-                break;
-            } // else, stop at the next system call entry or exit
-            ptrace(PTRACE_SYSCALL, descendant_pid, NULL, NULL);
-        }
+  cout << "Tracer process id = " << getpid() << endl;
+  pid_t child_pid = SAFE_SYSCALL(fork());    
+  
+  if (child_pid == 0) { // child process
+    cout << "Tracee process id = " << getpid() << endl;
+    char* args[] = {const_cast<char*>("date"), NULL};
+    
+    SAFE_SYSCALL(ptrace(PTRACE_TRACEME, 0, NULL, NULL));
+    execv("/bin/date", args);
+	
+  } else { // father process
+    TraceeStatus tracee_status;	
+    
+    // for the first time, make sure the child stopped before execv
+    pid_t descendant_pid = waitForDescendant(tracee_status);
+    assert(descendant_pid == child_pid);
+    assert(tracee_status == TraceeStatus::SIGNALED);
+    
+    // after the child has stopped, we can now set the correct options
+    SAFE_SYSCALL(ptrace(PTRACE_SETOPTIONS, child_pid, NULL, PTRACE_O_TRACESYSGOOD));
+        
+    while (1) {
+      
+      // and let the child resume
+      SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, child_pid, NULL, NULL));
+
+      pid_t descendant_pid = waitForDescendant(tracee_status);
+      
+      if (descendant_pid < 0) { // no more descendants
+	break; 
+      } // else, stop at the next system call entry or exit
+      
+      //SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, descendant_pid, NULL, NULL));
     }
-    return 0;
+  }
+  return 0;
 }
