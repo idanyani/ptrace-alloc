@@ -12,13 +12,12 @@ using namespace std;
 #include <sys/wait.h>
 #include <sys/ptrace.h>
 
-//TODO: fix this function and the following macro,
-// and then replace all system call invocations in the code
 int callSafeSyscall(int syscall_return_value, int code_line) {
 	if (syscall_return_value < 0) {
 		printf("Failed on line %d with error %d - %s\n", code_line, 
 		syscall_return_value, strerror(errno));
 	}
+	return syscall_return_value;
 }
 
 #define SAFE_SYSCALL(syscall) \
