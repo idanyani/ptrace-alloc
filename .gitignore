@@ -32,3 +32,8 @@
 *.app
 tracer
 
+# IDEs' configuration files
+.cproject
+.project
+.idea
+.settings
