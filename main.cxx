@@ -6,6 +6,7 @@ using namespace std;
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <stdio.h>
 #include <assert.h>
 #include <sys/types.h>
 #include <sys/wait.h>
