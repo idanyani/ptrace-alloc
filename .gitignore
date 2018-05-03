@@ -37,3 +37,8 @@ tracer
 .project
 .idea
 .settings
+
+# CMake files and dirs
+cmake-build*
+CMakeCache.txt
+CMakeFiles/
