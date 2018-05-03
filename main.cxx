@@ -11,6 +11,20 @@ using namespace std;
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/ptrace.h>
+#include <sys/user.h>
+    
+#include "syscallents.h"
+
+#define offsetof(type, member)  __builtin_offsetof (type, member)
+#define get_tracee_reg(child_id, reg_name) _get_reg(child_id, offsetof(struct user, regs.reg_name))
+
+long _get_reg(pid_t child_id, int offset)
+{
+    long res = ptrace(PTRACE_PEEKUSER, child_id, offset);
+    //assert(errno == 0);
+    return res;
+}
+
 
 int callSafeSyscall(int syscall_return_value, int code_line) {
 	if (syscall_return_value < 0) {
@@ -55,8 +69,12 @@ pid_t waitForDescendant(TraceeStatus& tracee_status) {
     } else if (WIFSTOPPED(status)) {
         int signal_num = WSTOPSIG(status);
         if (signal_num & PTRACE_O_TRACESYSGOOD_MASK) {
+	  // TODO: if-statement should be (signal_num == SIGTRAP|0x80)??
+	  // and should we use PTRACE_GETSIGINFO to obtain signal_num?? (continue reading man)
+	  // TODO: make sure it's sufficient to recognize system-call-stop
             tracee_status = TraceeStatus::SYSCALLED;
-            cout << "syscalled";
+            int syscall_num = get_tracee_reg(waited_pid, orig_rax);
+            cout << "syscalled with " << syscalls[syscall_num];
         } else {
             tracee_status = TraceeStatus::SIGNALED;
             char* signal_name = strsignal(signal_num);
@@ -81,32 +99,49 @@ int main() {
     char* args[] = {const_cast<char*>("date"), NULL};
     
     SAFE_SYSCALL(ptrace(PTRACE_TRACEME, 0, NULL, NULL));
+
     execv("/bin/date", args);
 	
   } else { // father process
+    bool inKernel = false;
     TraceeStatus tracee_status;	
     
     // for the first time, make sure the child stopped before execv
     pid_t descendant_pid = waitForDescendant(tracee_status);
     assert(descendant_pid == child_pid);
     assert(tracee_status == TraceeStatus::SIGNALED);
+
+    inKernel = !inKernel;
     
     // after the child has stopped, we can now set the correct options
     SAFE_SYSCALL(ptrace(PTRACE_SETOPTIONS, child_pid, NULL, PTRACE_O_TRACESYSGOOD));
         
     while (1) {
       
-      // and let the child resume
-      SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, child_pid, NULL, NULL));
+      // TODO: remove - core dump 
+        cout << "RAX before messing with orig_rax " << get_tracee_reg(child_pid, orig_rax) 
+            << " which is " << syscalls[get_tracee_reg(child_pid, orig_rax)] <<endl;
+        cout << "EBX " << get_tracee_reg(child_pid, rbx) << endl;
+        cout << "ECX " << get_tracee_reg(child_pid, rcx) << endl;
+        cout << "EDX " << get_tracee_reg(child_pid, rdx) << endl;
+        
+        SAFE_SYSCALL(ptrace(PTRACE_POKEUSER, child_pid, offsetof(struct user, regs.orig_rax), 25));
+        
+        cout << "RAX before continue " << get_tracee_reg(child_pid, orig_rax) << endl;
+      // end remove
 
-      pid_t descendant_pid = waitForDescendant(tracee_status);
+        pid_t descendant_pid = waitForDescendant(tracee_status);
+        // and let the child resume
+        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, child_pid, NULL, NULL));
+
+        inKernel = !inKernel;
       
-      if (descendant_pid < 0) { // no more descendants
-	break; 
-      } // else, stop at the next system call entry or exit
-      
-      //SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, descendant_pid, NULL, NULL));
+        if (descendant_pid < 0) { // no more descendants
+	       break; 
+        } // else, stop at the next system call entry or exit
+        cout << descendant_pid << " " << (inKernel ? "exits kernel" : "enters kernel") << endl;
+        }
     }
-  }
   return 0;
 }
+
