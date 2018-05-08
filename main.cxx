@@ -51,6 +51,7 @@ enum class TraceeStatus {
 pid_t waitForDescendant(TraceeStatus& tracee_status) {
     int status;
     pid_t waited_pid = wait(&status);
+
     if (waited_pid < 0) {
         assert(errno == ECHILD);
         cout << "No more descendants to wait for!" << endl;
@@ -92,58 +93,62 @@ pid_t waitForDescendant(TraceeStatus& tracee_status) {
 }
 
 int main() {
-    cout << "Tracer process id = " << getpid() << endl;
-    pid_t child_pid = SAFE_SYSCALL(fork());
+  cout << "Tracer process id = " << getpid() << endl;
+  pid_t child_pid = SAFE_SYSCALL(fork());    
+  
+  if (child_pid == 0) { // child process
+    cout << "Tracee process id = " << getpid() << endl;
+    char* args[] = {const_cast<char*>("date"), NULL};
+    
+    SAFE_SYSCALL(ptrace(PTRACE_TRACEME, 0, NULL, NULL));
 
-    if (child_pid == 0) { // child process
-        cout << "Tracee process id = " << getpid() << endl;
-        char* args[] = {const_cast<char*>("date"), NULL};
+    //SAFE_SYSCALL(execv("/bin/date", args));
+	execv("./child_getpid", args);
 
-        SAFE_SYSCALL(ptrace(PTRACE_TRACEME, 0, NULL, NULL));
+  } else { // father process
+    
+    bool in_kernel = false;
+    TraceeStatus tracee_status;	
+    
+    // for the first time, make sure the child stopped before execv
+    pid_t descendant_pid = waitForDescendant(tracee_status);
+    assert(descendant_pid == child_pid);
+    assert(tracee_status == TraceeStatus::SIGNALED);
 
-        execv("/bin/date", args);
+    // TODO: remove
+    cout << "RAX " << get_tracee_reg(child_pid, orig_rax) 
+            << " which is " << syscalls[get_tracee_reg(child_pid, orig_rax)] <<endl;
+    in_kernel = !in_kernel;
+    
+    // after the child has stopped, we can now set the correct options
+    SAFE_SYSCALL(ptrace(PTRACE_SETOPTIONS, child_pid, NULL, PTRACE_O_TRACESYSGOOD));
+        
+    while (1) {
+      
+      // TODO: remove - core dump
+      /* 
+        cout << "RAX before messing with orig_rax " << get_tracee_reg(child_pid, orig_rax) 
+            << " which is " << syscalls[get_tracee_reg(child_pid, orig_rax)] <<endl;
+        cout << "EBX " << get_tracee_reg(child_pid, rbx) << endl;
+        cout << "ECX " << get_tracee_reg(child_pid, rcx) << endl;
+        cout << "EDX " << get_tracee_reg(child_pid, rdx) << endl;
+      */  
+        //SAFE_SYSCALL(ptrace(PTRACE_POKEUSER, child_pid, offsetof(struct user, regs.orig_rax), 25));
+        
+        //cout << "RAX before continue " << get_tracee_reg(child_pid, orig_rax) << endl;
+      // end remove
+        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, child_pid, NULL, NULL));
 
-    } else { // father process
-        bool in_kernel = false;
-        TraceeStatus tracee_status;
-
-        // for the first time, make sure the child stopped before execv
         pid_t descendant_pid = waitForDescendant(tracee_status);
-        assert(descendant_pid == child_pid);
-        assert(tracee_status == TraceeStatus::SIGNALED);
 
         in_kernel = !in_kernel;
-
-        // after the child has stopped, we can now set the correct options
-        SAFE_SYSCALL(ptrace(PTRACE_SETOPTIONS, child_pid, NULL, PTRACE_O_TRACESYSGOOD));
-
-        while (1) {
-
-            // TODO: remove - core dump
-            cout << "RAX before messing with orig_rax " << get_tracee_reg(child_pid, orig_rax)
-            << " which is " << syscalls[get_tracee_reg(child_pid, orig_rax)] <<endl;
-            cout << "EBX " << get_tracee_reg(child_pid, rbx) << endl;
-            cout << "ECX " << get_tracee_reg(child_pid, rcx) << endl;
-            cout << "EDX " << get_tracee_reg(child_pid, rdx) << endl;
-
-            SAFE_SYSCALL(ptrace(PTRACE_POKEUSER, child_pid, offsetof(
-                                 struct user, regs.orig_rax), 25));
-
-            cout << "RAX before continue " << get_tracee_reg(child_pid, orig_rax) << endl;
-            // end remove
-
-            pid_t descendant_pid = waitForDescendant(tracee_status);
-            // and let the child resume
-            SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, child_pid, NULL, NULL));
-
-            in_kernel = !in_kernel;
-
-            if (descendant_pid < 0) { // no more descendants
-                break;
-            } // else, stop at the next system call entry or exit
-            cout << descendant_pid << " " << (in_kernel ? "exits kernel" : "enters kernel") << endl;
+      
+        if (descendant_pid < 0) { // no more descendants
+	       break; 
+        } // else, stop at the next system call entry or exit
+        cout << descendant_pid << " " << (in_kernel ? "exits kernel" : "enters kernel") << endl;
         }
     }
-    return 0;
+  return 0;
 }
 
