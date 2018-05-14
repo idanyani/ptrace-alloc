@@ -1,5 +1,8 @@
 // C++ headers
 #include <iostream>
+#include <vector>
+#include <tuple>
+#include <sstream>
 
 // C headers
 #include <unistd.h>
@@ -16,6 +19,9 @@
 
 using std::cout;
 using std::endl;
+using std::tuple;
+using std::vector;
+
 
 #define offsetof(type, member)  __builtin_offsetof (type, member)
 #define get_tracee_reg(child_id, reg_name) _get_reg(child_id, offsetof(struct user, regs.reg_name))
@@ -37,6 +43,21 @@ int callSafeSyscall(int syscall_return_value, int code_line) {
 
 #define SAFE_SYSCALL(syscall) \
     callSafeSyscall(syscall, __LINE__)
+ 
+// TODO: think how to check failure of PEEK_USER
+void printMmap(pid_t child_pid)
+{
+    cout << std::showbase << std::hex;
+    cout << "Arguments to mmap: " << endl;
+    cout << "RBX = " << get_tracee_reg(child_pid, rbx) << endl; 
+    cout << "RCX = " << get_tracee_reg(child_pid, rcx) << endl;
+    cout << "RDX = " << get_tracee_reg(child_pid, rdx) << endl; 
+    cout << "RSI = " << get_tracee_reg(child_pid, rsi) << endl;
+    cout << "RDI = " << get_tracee_reg(child_pid, rdi) << endl;  
+    cout << "RBP = " << get_tracee_reg(child_pid, rbp) << endl;  
+                
+    cout << std::noshowbase << std::dec; 
+}
 
 #define PTRACE_O_TRACESYSGOOD_MASK  0x80
 
@@ -47,8 +68,25 @@ enum class TraceeStatus {
     SYSCALLED,
     CONTINUED
 };
+/*
+TODO: add function that identifies systemcall to poke
+TODO : add number of system call we are about to poke?
+*/
+bool sysCallPoke(pid_t child_pid, vector<tuple<bool, long>>& args)
+{
+    int arg_regs[6] = {offsetof(struct user, regs.rbx), offsetof(struct user, regs.rcx), 
+                        offsetof(struct user, regs.rdx), offsetof(struct user, regs.rsi), 
+                        offsetof(struct user, regs.rdi), offsetof(struct user, regs.rbp)};
+    bool poke = true;
+    for(int arg_i = 0; arg_i < 6; arg_i++)
+    {
+        if(std::get<0>(args[arg_i]))
+            poke = poke && (_get_reg(child_pid, arg_regs[arg_i]) == std::get<1>(args[arg_i]));
+    }        
+    return poke;
+}
 
-pid_t waitForDescendant(TraceeStatus& tracee_status) {
+pid_t waitForDescendant(TraceeStatus& tracee_status, bool poke_syscall, int new_syscall, vector<tuple<bool, long>>& args) {
     int status;
     pid_t waited_pid = wait(&status);
 
@@ -76,7 +114,20 @@ pid_t waitForDescendant(TraceeStatus& tracee_status) {
             // TODO: make sure it's sufficient to recognize system-call-stop
             tracee_status = TraceeStatus::SYSCALLED;
             int syscall_num = get_tracee_reg(waited_pid, orig_rax);
-            cout << "syscalled with " << syscalls[syscall_num];
+            cout << "syscalled with " << syscalls[syscall_num] << endl ;
+            // print mmap
+            // not sure it's enough
+            if(syscall_num == 9){ // TODO: change to parameter
+                printMmap(waited_pid);
+                // TODO : fix 
+                if( /*(get_tracee_reg(waited_pid, rdi) == 0) &&
+                    (get_tracee_reg(waited_pid, rsi) == 4) && 
+                    (get_tracee_reg(waited_pid, rdx) == 3)*/ poke_syscall && sysCallPoke(waited_pid, args))
+                        // TODO: move to unit test : Change to getpid
+                        SAFE_SYSCALL(ptrace(PTRACE_POKEUSER, waited_pid, offsetof(
+                                 struct user, regs.orig_rax), new_syscall));
+            }
+
         } else {
             tracee_status = TraceeStatus::SIGNALED;
             char* signal_name = strsignal(signal_num);
@@ -92,32 +143,62 @@ pid_t waitForDescendant(TraceeStatus& tracee_status) {
     return waited_pid;
 }
 
-int main() {
-  cout << "Tracer process id = " << getpid() << endl;
-  pid_t child_pid = SAFE_SYSCALL(fork());    
-  
-  if (child_pid == 0) { // child process
-    cout << "Tracee process id = " << getpid() << endl;
-    char* args[] = {const_cast<char*>("date"), NULL};
-    
-    SAFE_SYSCALL(ptrace(PTRACE_TRACEME, 0, NULL, NULL));
+int main(int argc, char* argv[]) {
+    //assert(argc == 7);
+    cout << "Tracer process id = " << getpid() << endl;
+    /*
+    vector<tuple<bool, long>> poke_syscall_args;
+    for(int i = 0; i < argc; i++)
+    {
+        long param;
+        bool valid_arg; 
 
-    //SAFE_SYSCALL(execv("/bin/date", args));
-	execv("./child_getpid", args);
+        istringstream iss (argv[i]);
+        
+        
+        if((iss >> param) == NULL){
+            cerr << "Invalid argument " << argv[i] << endl;
+            return 1; // ???
+        }
+        
+        //iss >> param;
+        valid_arg = (param != -1);
+        poke_syscall_args.push_back(make_tuple(valid_arg, param));
+
+    }
+    */
+    pid_t child_pid = SAFE_SYSCALL(fork());    
+  
+    if (child_pid == 0) { // child process
+        cout << "Tracee process id = " << getpid() << endl;
+        char* args[] = {const_cast<char*>("date"), NULL};
+    
+        SAFE_SYSCALL(ptrace(PTRACE_TRACEME, 0, NULL, NULL));
+
+        //SAFE_SYSCALL(execv("/bin/date", args));
+	    //execv("./child_getpid", args);
+        execv("./child_mmap", args);
 
   } else { // father process
     
     bool in_kernel = false;
     TraceeStatus tracee_status;	
     
+    vector<tuple<bool, long>> poke_syscall_args;
+
+    // TODO: change to reading from command line arguments 
+    poke_syscall_args.push_back(std::make_tuple(false, -1));
+    poke_syscall_args.push_back(std::make_tuple(false, -1));
+    poke_syscall_args.push_back(std::make_tuple(true, 3));
+    poke_syscall_args.push_back(std::make_tuple(true, 4));
+    poke_syscall_args.push_back(std::make_tuple(true, 0));
+    poke_syscall_args.push_back(std::make_tuple(false, -1));       
+
     // for the first time, make sure the child stopped before execv
-    pid_t descendant_pid = waitForDescendant(tracee_status);
+    pid_t descendant_pid = waitForDescendant(tracee_status, true, 39, poke_syscall_args);
     assert(descendant_pid == child_pid);
     assert(tracee_status == TraceeStatus::SIGNALED);
 
-    // TODO: remove
-    cout << "RAX " << get_tracee_reg(child_pid, orig_rax) 
-            << " which is " << syscalls[get_tracee_reg(child_pid, orig_rax)] <<endl;
     in_kernel = !in_kernel;
     
     // after the child has stopped, we can now set the correct options
@@ -125,30 +206,18 @@ int main() {
         
     while (1) {
       
-      // TODO: remove - core dump
-      /* 
-        cout << "RAX before messing with orig_rax " << get_tracee_reg(child_pid, orig_rax) 
-            << " which is " << syscalls[get_tracee_reg(child_pid, orig_rax)] <<endl;
-        cout << "EBX " << get_tracee_reg(child_pid, rbx) << endl;
-        cout << "ECX " << get_tracee_reg(child_pid, rcx) << endl;
-        cout << "EDX " << get_tracee_reg(child_pid, rdx) << endl;
-      */  
-        //SAFE_SYSCALL(ptrace(PTRACE_POKEUSER, child_pid, offsetof(struct user, regs.orig_rax), 25));
-        
-        //cout << "RAX before continue " << get_tracee_reg(child_pid, orig_rax) << endl;
-      // end remove
-        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, child_pid, NULL, NULL));
+            SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, child_pid, NULL, NULL));
 
-        pid_t descendant_pid = waitForDescendant(tracee_status);
+            pid_t descendant_pid = waitForDescendant(tracee_status, true, 39, poke_syscall_args);
 
-        in_kernel = !in_kernel;
+            in_kernel = !in_kernel;
       
-        if (descendant_pid < 0) { // no more descendants
-	       break; 
-        } // else, stop at the next system call entry or exit
-        cout << descendant_pid << " " << (in_kernel ? "exits kernel" : "enters kernel") << endl;
+            if (descendant_pid < 0) { // no more descendants
+	           break; 
+            } // else, stop at the next system call entry or exit
+            cout << descendant_pid << " " << (in_kernel ? "exits kernel" : "enters kernel") << endl;
         }
     }
-  return 0;
+    return 0;
 }
 
