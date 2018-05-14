@@ -44,17 +44,17 @@ int callSafeSyscall(int syscall_return_value, int code_line) {
 #define SAFE_SYSCALL(syscall) \
     callSafeSyscall(syscall, __LINE__)
  
-// TODO: think how to check failure of PEEK_USER
+// TODO: change to generic system call
 void printMmap(pid_t child_pid)
 {
     cout << std::showbase << std::hex;
     cout << "Arguments to mmap: " << endl;
-    cout << "RBX = " << get_tracee_reg(child_pid, rbx) << endl; 
-    cout << "RCX = " << get_tracee_reg(child_pid, rcx) << endl;
-    cout << "RDX = " << get_tracee_reg(child_pid, rdx) << endl; 
-    cout << "RSI = " << get_tracee_reg(child_pid, rsi) << endl;
-    cout << "RDI = " << get_tracee_reg(child_pid, rdi) << endl;  
-    cout << "RBP = " << get_tracee_reg(child_pid, rbp) << endl;  
+    cout << "1 : RDI = " << get_tracee_reg(child_pid, rdi) << endl; 
+    cout << "2 : RSI = " << get_tracee_reg(child_pid, rsi) << endl;
+    cout << "3 : RDX = " << get_tracee_reg(child_pid, rdx) << endl; 
+    cout << "4 : R10 = " << get_tracee_reg(child_pid, r10) << endl;
+    cout << "5 : R8 = " << get_tracee_reg(child_pid, r8) << endl;  
+    cout << "6 : R9 = " << get_tracee_reg(child_pid, r9) << endl;  
                 
     cout << std::noshowbase << std::dec; 
 }
