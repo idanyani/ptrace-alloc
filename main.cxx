@@ -6,10 +6,10 @@
 
 // C headers
 #include <unistd.h>
-#include <errno.h>
-#include <string.h>
-#include <stdio.h>
-#include <assert.h>
+#include <cerrno>
+#include <cstring>
+#include <cstdio>
+#include <cassert>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/ptrace.h>
