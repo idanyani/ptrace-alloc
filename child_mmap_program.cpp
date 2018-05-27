@@ -1,10 +1,6 @@
 #include <iostream>
-#include <cstdint>
 
 #include <unistd.h>
-#include <errno.h>
-#include <string.h>
-#include <stdio.h>
 #include <sys/mman.h>
 #include <assert.h>
 
