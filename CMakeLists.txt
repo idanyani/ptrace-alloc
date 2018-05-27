@@ -6,3 +6,5 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror")
 
 add_executable(tracer main.cxx ptrace.cxx ptrace.h syscallents.h)
 add_executable(child_mmap child_mmap_program.cpp ptrace.cxx ptrace.h syscallents.h)
+
+add_dependencies(tracer child_mmap)
