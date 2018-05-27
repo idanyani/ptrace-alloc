@@ -8,3 +8,9 @@ add_executable(tracer main.cxx ptrace.cxx ptrace.h syscallents.h syscall.cxx sys
 add_executable(child_mmap child_mmap_program.cpp)
 
 add_dependencies(tracer child_mmap)
+
+# TODO: can we use: add_test()?
+add_executable(ptrace_test test/ptrace_test.cxx ptrace.cxx ptrace.h syscallents.h syscall.cxx syscall.h)
+add_executable(tracee test/tracee.cxx)
+
+add_dependencies(ptrace_test tracee)
