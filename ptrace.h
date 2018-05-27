@@ -4,6 +4,7 @@
 #include <string>
 #include <stdexcept>
 
+#include "syscall.h"
 
 using std::string;
 
@@ -33,7 +34,7 @@ class Ptrace {
 
     Ptrace(const Ptrace&) = delete;
 
-    SyscallDirection runUntilSyscallGate();
+    std::pair<Syscall, SyscallDirection> runUntilSyscallGate();
 
     pid_t getPid() const {
         return tracee_pid_;
@@ -41,7 +42,7 @@ class Ptrace {
 
   private:
 
-    pid_t waitForDescendant(TraceeStatus& tracee_status);
+    pid_t waitForDescendant(TraceeStatus& tracee_status, int* entry = nullptr);
 
     // private data
     pid_t   tracee_pid_;

@@ -9,10 +9,9 @@
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 #include <unistd.h>
-
 #include <sys/user.h>
 
-#include "syscallents.h"
+#include "syscall.h"
 
 using std::cout;
 using std::endl;
@@ -67,21 +66,36 @@ Ptrace::~Ptrace() {
     }
 }
 
-Ptrace::SyscallDirection Ptrace::runUntilSyscallGate() {
-    SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, tracee_pid_, NULL, NULL));
+std::pair<Syscall, Ptrace::SyscallDirection> Ptrace::runUntilSyscallGate() {
 
-    TraceeStatus tracee_status;
-    auto descendant_pid = waitForDescendant(tracee_status);
-    assert(descendant_pid == tracee_pid_);
+    TraceeStatus tracee_status = TraceeStatus::SYSCALLED;
+    int entry = 0;
 
+    do {
+        if (tracee_status != TraceeStatus::SIGNALED) {
+            // preserve signal only when signal is sent
+            entry = 0;
+        }
+
+        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, tracee_pid_, NULL, entry));
+
+        auto descendant_pid = waitForDescendant(tracee_status, &entry);
+        assert(descendant_pid == tracee_pid_);
+
+    } while (tracee_status != TraceeStatus::SYSCALLED);
+
+
+    // currently this condition is always true
     if (tracee_status == TraceeStatus::SYSCALLED) {
         in_kernel_ = !in_kernel_;
     }
 
-    return in_kernel_ ? SyscallDirection::ENTRY : SyscallDirection::EXIT;
+    auto direction = in_kernel_ ? SyscallDirection::ENTRY : SyscallDirection::EXIT;
+
+    return std::make_pair(entry, direction);
 }
 
-pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status) {
+pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status, int* entry) {
     int status;
     pid_t waited_pid = wait(&status);
     if (waited_pid < 0) {
@@ -104,17 +118,21 @@ pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status) {
         if (signal_num & PTRACE_O_TRACESYSGOOD_MASK) {
             assert(signal_num == (SIGTRAP | PTRACE_O_TRACESYSGOOD_MASK));
             tracee_status = TraceeStatus::SYSCALLED;
+
             int syscall_num = get_tracee_reg(waited_pid, orig_rax);
-            cout << "syscalled with " << syscalls[syscall_num];
+            cout << "syscalled with " << string(Syscall(syscall_num));
+
+            if (entry) {
+                *entry = syscall_num;
+            }
 
         } else {
             tracee_status = TraceeStatus::SIGNALED;
             char* signal_name = strsignal(signal_num);
             cout << "stopped by " << signal_name << " (#" << signal_num << ")";
 
-            if (signal_num != SIGTRAP) {
-                // we don't want the child to loose the signal
-                SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, tracee_pid_, NULL, signal_num));
+            if (entry) {
+                *entry = signal_num;
             }
         }
     } else if (WIFCONTINUED(status)) {

@@ -25,7 +25,7 @@ int main(int argc, char* argv[]) {
         Ptrace::SyscallDirection direction;
 
         try {
-            direction = ptrace.runUntilSyscallGate();
+            direction = ptrace.runUntilSyscallGate().second;
 
         } catch (std::exception& e) {
             cout << e.what() << endl;
