@@ -1,0 +1,11 @@
+28/5/2018
+
+1) switch gen_tables.py to python3 (preferably with anaconda).
+2) no need to search in generic paths in gen_tables.py.
+3) use add_test() for unit tests in cmake.
+4) incorporate gtest into the project: 
+   https://github.com/google/googletest/blob/master/googletest/README.md
+5) intercept mmap() and change it getpid().
+6) repeat 5) for a grandchild rather than child process.
+
+Good tutorials: gtest, python/argparse
