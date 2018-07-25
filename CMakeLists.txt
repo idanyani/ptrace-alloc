@@ -12,14 +12,15 @@ add_executable(child_mmap ${SRC}/child_mmap_program.cpp)
 
 add_dependencies(tracer child_mmap)
 
-# TODO: can we use: add_test()?
-add_executable(ptrace_test test/ptrace_test.cxx ${SRC}/ptrace.cxx ${SRC}/syscall.cxx)
-add_executable(tracee test/tracee.cxx)
-
-add_dependencies(ptrace_test tracee)
-
+### GTEST ###
 set(GTEST_SRC_DIR googletest)
 add_subdirectory(${GTEST_SRC_DIR})
+enable_testing()
 include_directories(${GTEST_SRC_DIR}/include ${GTEST_SRC_DIR})
-add_executable(unittests test/ptrace_test.cxx ${SRC}/ptrace.cxx ${SRC}/syscall.cxx)
+
+### Unittests ###
+add_executable(unittests unittests/ptrace_unittest.cxx ${SRC}/ptrace.cxx ${SRC}/syscall.cxx)
+add_executable(tracee test/tracee.cxx)
+add_dependencies(unittests tracee)
 target_link_libraries(unittests gtest gtest_main)
+add_test(unittests unittests)
