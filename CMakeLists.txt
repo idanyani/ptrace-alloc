@@ -17,3 +17,9 @@ add_executable(ptrace_test test/ptrace_test.cxx ${SRC}/ptrace.cxx ${SRC}/syscall
 add_executable(tracee test/tracee.cxx)
 
 add_dependencies(ptrace_test tracee)
+
+set(GTEST_SRC_DIR googletest)
+add_subdirectory(${GTEST_SRC_DIR})
+include_directories(${GTEST_SRC_DIR}/include ${GTEST_SRC_DIR})
+add_executable(unittests test/ptrace_test.cxx ${SRC}/ptrace.cxx ${SRC}/syscall.cxx)
+target_link_libraries(unittests gtest gtest_main)
