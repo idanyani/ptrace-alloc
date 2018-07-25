@@ -8,7 +8,6 @@
 
 using std::string;
 
-
 class Ptrace {
   public:
     class NoChildren : public std::logic_error {

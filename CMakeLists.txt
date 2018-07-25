@@ -4,13 +4,16 @@ project(ptrace_alloc)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror")
 
-add_executable(tracer main.cxx ptrace.cxx ptrace.h syscallents.h syscall.cxx syscall.h)
-add_executable(child_mmap child_mmap_program.cpp)
+set(SRC src)
+
+include_directories(${SRC})
+add_executable(tracer ${SRC}/main.cxx ${SRC}/ptrace.cxx ${SRC}/syscall.cxx)
+add_executable(child_mmap ${SRC}/child_mmap_program.cpp)
 
 add_dependencies(tracer child_mmap)
 
 # TODO: can we use: add_test()?
-add_executable(ptrace_test test/ptrace_test.cxx ptrace.cxx ptrace.h syscallents.h syscall.cxx syscall.h)
+add_executable(ptrace_test test/ptrace_test.cxx ${SRC}/ptrace.cxx ${SRC}/syscall.cxx)
 add_executable(tracee test/tracee.cxx)
 
 add_dependencies(ptrace_test tracee)

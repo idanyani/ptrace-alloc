@@ -1,6 +1,6 @@
 #include <cassert>
 #include <wait.h>
-#include "../ptrace.h"
+#include "ptrace.h"
 
 
 int main() {
