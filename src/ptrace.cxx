@@ -92,7 +92,7 @@ std::pair<Syscall, Ptrace::SyscallDirection> Ptrace::runUntilSyscallGate() {
 
     auto direction = in_kernel_ ? SyscallDirection::ENTRY : SyscallDirection::EXIT;
 
-    return std::make_pair(entry, direction);
+    return std::make_pair(Syscall(entry), direction);
 }
 
 pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status, int* entry) {

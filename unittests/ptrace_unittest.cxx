@@ -7,11 +7,11 @@
 TEST(PtraceTest, BasicTest) {
     char* args[] = {const_cast<char*>("./tracee"), nullptr};
 
-    Ptrace ptrace("./tracee", args);
+    Ptrace ptrace(args[0], args);
 
     decltype(ptrace.runUntilSyscallGate()) syscall_info;
 
-    Syscall getpid_syscall(39); // TODO add ability to construct by "getpid" string?
+    Syscall getpid_syscall(39);
 
     while (syscall_info.first != getpid_syscall) {
         syscall_info = ptrace.runUntilSyscallGate();

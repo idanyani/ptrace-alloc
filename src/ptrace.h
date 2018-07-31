@@ -31,7 +31,9 @@ class Ptrace {
 
     ~Ptrace();
 
+    // non copyable
     Ptrace(const Ptrace&) = delete;
+    Ptrace& operator=(const Ptrace&) = delete;
 
     std::pair<Syscall, SyscallDirection> runUntilSyscallGate();
 
