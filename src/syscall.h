@@ -8,7 +8,9 @@ class Syscall {
     // TODO: add ability to construct by "getpid" string
     explicit Syscall(int num = -1) : num_(num) {}
 
-    operator std::string() const;
+    explicit Syscall(const std::string& syscall_name);
+
+    explicit operator std::string() const;
 
     bool operator==(const Syscall& other) const {
         return num_ == other.num_;
