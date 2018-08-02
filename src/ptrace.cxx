@@ -15,6 +15,7 @@
 
 using std::cout;
 using std::endl;
+using std::string;
 
 #define offsetof(type, member)  __builtin_offsetof (type, member)
 #define get_tracee_reg(child_id, reg_name) _get_reg(child_id, offsetof(struct user, regs.reg_name))
@@ -95,6 +96,30 @@ std::pair<Syscall, Ptrace::SyscallDirection> Ptrace::runUntilSyscallGate() {
     return std::make_pair(Syscall(entry), direction);
 }
 
+std::pair<int, bool> Ptrace::runUntilExit() {
+    if (in_kernel_) {// preserve "in_kernel_" validity
+        runUntilSyscallGate();
+    }
+
+    TraceeStatus tracee_status = TraceeStatus::SYSCALLED;
+    int entry = 0;
+
+    do {
+        if (tracee_status != TraceeStatus::SIGNALED) {
+            // preserve signal only when signal is sent
+            entry = 0;
+        }
+
+        SAFE_SYSCALL(ptrace(PTRACE_CONT, tracee_pid_, NULL, entry));
+
+        auto descendant_pid = waitForDescendant(tracee_status, &entry);
+        assert(descendant_pid == tracee_pid_);
+
+    } while (tracee_status != TraceeStatus::EXITED && tracee_status != TraceeStatus::TERMINATED);
+
+    return std::make_pair(entry, tracee_status == TraceeStatus::EXITED);
+}
+
 pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status, int* entry) {
     int status;
     pid_t waited_pid = wait(&status);
@@ -106,13 +131,23 @@ pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status, int* entry) {
     cout << "Process #" << waited_pid << " ";
 
     if (WIFEXITED(status)) {
+        int retval = WEXITSTATUS(status);
         tracee_status = TraceeStatus::EXITED;
-        cout << "exited normally with value " << WEXITSTATUS(status);
+
+        if (entry) {
+            *entry = retval;
+        }
+
+        cout << "exited normally with value " << retval;
     } else if (WIFSIGNALED(status)) {
         tracee_status = TraceeStatus::TERMINATED;
         int signal_num = WTERMSIG(status);
         char* signal_name = strsignal(signal_num);
         cout << "terminated by " << signal_name << " (#" << signal_num << ")";
+
+        if (entry) {
+            *entry = signal_num;
+        }
     } else if (WIFSTOPPED(status)) {
         int signal_num = WSTOPSIG(status);
         if (signal_num & PTRACE_O_TRACESYSGOOD_MASK) {
