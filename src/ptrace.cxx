@@ -17,13 +17,6 @@ using std::cout;
 using std::endl;
 using std::string;
 
-#define offsetof(type, member)  __builtin_offsetof (type, member)
-#define get_tracee_reg(child_id, reg_name) _get_reg(child_id, offsetof(struct user, regs.reg_name))
-
-long _get_reg(pid_t child_id, int offset) {
-    return ptrace(PTRACE_PEEKUSER, child_id, offset);
-}
-
 template<typename T>
 T handleSyscallReturnValue(T syscall_return_value, unsigned code_line) {
     if (syscall_return_value < 0) {
@@ -36,6 +29,22 @@ T handleSyscallReturnValue(T syscall_return_value, unsigned code_line) {
 
 #define SAFE_SYSCALL(syscall) \
     handleSyscallReturnValue(syscall, __LINE__)
+
+#define SAFE_SYSCALL_BY_ERRNO(syscall)                      \
+    ({                                                      \
+        errno = 0;                                          \
+        const auto ret = syscall;                           \
+        handleSyscallReturnValue(-errno, __LINE__);         \
+        ret;                                                \
+    }) // https://gcc.gnu.org/onlinedocs/gcc/Statement-Exprs.html
+
+
+#define offsetof(type, member)              __builtin_offsetof (type, member)
+#define get_tracee_reg(child_id, reg_name)  _get_reg(child_id, offsetof(struct user, regs.reg_name))
+
+long _get_reg(pid_t child_id, int offset) {
+    return SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER, child_id, offset));
+}
 
 #define PTRACE_O_TRACESYSGOOD_MASK  0x80
 
