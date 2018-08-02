@@ -191,7 +191,6 @@ pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status, int* entry) {
 }
 
 void Ptrace::pokeSyscall(const Syscall& syscallToRun) {
-    // TODO: check validity of syscalls?
     assert(in_kernel_);
     SAFE_SYSCALL(ptrace(PTRACE_POKEUSER, tracee_pid_,
                         offsetof(struct user, regs.orig_rax), syscallToRun.getSyscallNum()));

@@ -57,7 +57,7 @@ TEST(PtraceTest, MmapHijackTest) {
     EXPECT_EQ(std::string(syscall_info.first.syscallToString()) , "mmap");
     ASSERT_EQ(syscall_info.second , Ptrace::SyscallDirection::ENTRY);
 
-    //TODO: modify mmap to return getpid()
+    // modify mmap to return getpid()
     ptrace.pokeSyscall(getpid_syscall);
 
     syscall_info = ptrace.runUntilSyscallGate();
