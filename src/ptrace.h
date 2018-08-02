@@ -28,6 +28,8 @@ class Ptrace {
 
     std::pair<Syscall, SyscallDirection> runUntilSyscallGate();
 
+    void pokeSyscall(const Syscall& syscallToRun);
+
     std::pair<int, bool> runUntilExit();
 
     pid_t getChildPid() const {

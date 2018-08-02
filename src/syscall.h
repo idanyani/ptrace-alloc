@@ -19,6 +19,8 @@ class Syscall {
         return num_ != other.num_;
     }
 
+    int getSyscallNum() const  { return num_; }
+
   private:
     int num_;
 };

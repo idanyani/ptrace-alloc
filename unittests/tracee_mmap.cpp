@@ -14,5 +14,5 @@ int main() {
                                    MAP_PRIVATE | MAP_ANONYMOUS,
                                    -1,
                                    0);
-    return res;
+    return (res == getpid()) ? 0 : -1;
 }

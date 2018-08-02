@@ -24,7 +24,8 @@ long _get_reg(pid_t child_id, int offset) {
     return ptrace(PTRACE_PEEKUSER, child_id, offset);
 }
 
-int handleSyscallReturnValue(int syscall_return_value, unsigned code_line) {
+template<typename T>
+T handleSyscallReturnValue(T syscall_return_value, unsigned code_line) {
     if (syscall_return_value < 0) {
         throw std::system_error(errno,
                                 std::system_category(),
@@ -178,4 +179,11 @@ pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status, int* entry) {
     }
     cout << endl;
     return waited_pid;
+}
+
+void Ptrace::pokeSyscall(const Syscall& syscallToRun) {
+    // TODO: check validity of syscalls?
+    assert(in_kernel_);
+    SAFE_SYSCALL(ptrace(PTRACE_POKEUSER, tracee_pid_,
+                        offsetof(struct user, regs.orig_rax), syscallToRun.getSyscallNum()));
 }

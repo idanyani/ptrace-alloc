@@ -36,7 +36,7 @@ TEST(PtraceTest, BasicTest) {
     EXPECT_THROW(syscall_info = ptrace.runUntilSyscallGate(), std::system_error);
 }
 
-TEST(PtraceTest, DISABLED_MmapHijackTest) {
+TEST(PtraceTest, MmapHijackTest) {
     char* args[] = {const_cast<char*>("./tracee_mmap"), nullptr};
 
     Ptrace ptrace(args[0], args);
@@ -58,12 +58,13 @@ TEST(PtraceTest, DISABLED_MmapHijackTest) {
     ASSERT_EQ(syscall_info.second , Ptrace::SyscallDirection::ENTRY);
 
     //TODO: modify mmap to return getpid()
+    ptrace.pokeSyscall(getpid_syscall);
 
     syscall_info = ptrace.runUntilSyscallGate();
-    EXPECT_EQ(std::string(syscall_info.first) , "mmap");
+    EXPECT_EQ(std::string(syscall_info.first) , "getpid");
     ASSERT_EQ(syscall_info.second , Ptrace::SyscallDirection::EXIT);
 
     auto exit_status = ptrace.runUntilExit();
     ASSERT_TRUE(exit_status.second);
-    EXPECT_EQ(ptrace.getChildPid(), exit_status.first);
+    EXPECT_EQ(0, exit_status.first);
 }
