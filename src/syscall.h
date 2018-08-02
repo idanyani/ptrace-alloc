@@ -5,7 +5,6 @@
 
 class Syscall {
   public:
-    // TODO: add ability to construct by "getpid" string
     explicit Syscall(int num = -1) : num_(num) {}
 
     explicit Syscall(const std::string& syscall_name);
