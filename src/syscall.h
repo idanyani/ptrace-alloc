@@ -9,7 +9,6 @@ class Syscall {
 
     explicit Syscall(const std::string& syscall_name);
 
-    explicit operator std::string() const;
 
     bool operator==(const Syscall& other) const {
         return num_ == other.num_;
@@ -19,10 +18,13 @@ class Syscall {
         return num_ != other.num_;
     }
 
-    int getSyscallNum() const  { return num_; }
+    int getSyscallNum() const;
+
+    std::string const syscallToString();
 
   private:
     int num_;
+    void validate() const;
 };
 
 

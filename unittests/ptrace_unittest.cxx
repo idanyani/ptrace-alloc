@@ -22,15 +22,15 @@ TEST(PtraceTest, BasicTest) {
     }
 
     syscall_info = ptrace.runUntilSyscallGate();
-    EXPECT_EQ(std::string(syscall_info.first) , "close");
+    EXPECT_EQ(std::string(syscall_info.first.syscallToString()) , "close");
     ASSERT_EQ(syscall_info.second , Ptrace::SyscallDirection::ENTRY);
 
     syscall_info = ptrace.runUntilSyscallGate();
-    EXPECT_EQ(std::string(syscall_info.first) , "close");
+    EXPECT_EQ(std::string(syscall_info.first.syscallToString()) , "close");
     ASSERT_EQ(syscall_info.second , Ptrace::SyscallDirection::EXIT);
 
     syscall_info = ptrace.runUntilSyscallGate();
-    EXPECT_EQ(std::string(syscall_info.first) , "exit_group");
+    EXPECT_EQ(std::string(syscall_info.first.syscallToString()) , "exit_group");
     EXPECT_EQ(syscall_info.second , Ptrace::SyscallDirection::ENTRY);
 
     EXPECT_THROW(syscall_info = ptrace.runUntilSyscallGate(), std::system_error);
@@ -54,14 +54,14 @@ TEST(PtraceTest, MmapHijackTest) {
     }
 
     syscall_info = ptrace.runUntilSyscallGate();
-    EXPECT_EQ(std::string(syscall_info.first) , "mmap");
+    EXPECT_EQ(std::string(syscall_info.first.syscallToString()) , "mmap");
     ASSERT_EQ(syscall_info.second , Ptrace::SyscallDirection::ENTRY);
 
     //TODO: modify mmap to return getpid()
     ptrace.pokeSyscall(getpid_syscall);
 
     syscall_info = ptrace.runUntilSyscallGate();
-    EXPECT_EQ(std::string(syscall_info.first) , "getpid");
+    EXPECT_EQ(std::string(syscall_info.first.syscallToString()) , "getpid");
     ASSERT_EQ(syscall_info.second , Ptrace::SyscallDirection::EXIT);
 
     auto exit_status = ptrace.runUntilExit();

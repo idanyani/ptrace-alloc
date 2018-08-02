@@ -156,7 +156,7 @@ pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status, int* entry) {
             tracee_status = TraceeStatus::SYSCALLED;
 
             int syscall_num = get_tracee_reg(waited_pid, orig_rax);
-            cout << "syscalled with " << string(Syscall(syscall_num));
+            cout << "syscalled with " << (Syscall(syscall_num)).syscallToString();
 
             if (entry) {
                 *entry = syscall_num;
