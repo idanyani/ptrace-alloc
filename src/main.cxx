@@ -32,7 +32,7 @@ int main(int argc, char* argv[]) {
             break;
         }
 
-        cout << ptrace.getPid() << " " << (direction == Ptrace::SyscallDirection::ENTRY ?
+        cout << ptrace.getChildPid() << " " << (direction == Ptrace::SyscallDirection::ENTRY ?
                                            "enters kernel" : "exits kernel") << endl;
     }
 

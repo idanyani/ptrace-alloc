@@ -30,7 +30,7 @@ class Ptrace {
 
     std::pair<int, bool> runUntilExit();
 
-    pid_t getPid() const {
+    pid_t getChildPid() const {
         return tracee_pid_;
     }
 

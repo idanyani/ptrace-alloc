@@ -65,5 +65,5 @@ TEST(PtraceTest, DISABLED_MmapHijackTest) {
 
     auto exit_status = ptrace.runUntilExit();
     ASSERT_TRUE(exit_status.second);
-    EXPECT_EQ(getpid(), exit_status.first);
+    EXPECT_EQ(ptrace.getChildPid(), exit_status.first);
 }
