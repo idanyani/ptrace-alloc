@@ -1,6 +1,5 @@
 #include "ptrace.h"
 
-#include <iostream>
 #include <cassert>
 #include <cstring>
 #include <system_error>
@@ -13,8 +12,6 @@
 
 #include "syscall.h"
 
-using std::cout;
-using std::endl;
 using std::string;
 
 template<typename T>
@@ -55,7 +52,7 @@ Ptrace::Ptrace(const std::string& executable, char* args[]) :
 
     if (tracee_pid_== 0) {
         // child process
-        cout << "Tracee process id = " << getpid() << endl;
+        logger_ << "Tracee process id = " << getpid() << logger_.endl;
 
         SAFE_SYSCALL(ptrace(PTRACE_TRACEME, 0, NULL, NULL));
         SAFE_SYSCALL(execv(executable.c_str(), args));
@@ -138,7 +135,7 @@ pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status, int* entry) {
         throw NoChildren();
     } // else, one of the descendants changed state
 
-    cout << "Process #" << waited_pid << " ";
+    logger_ << "Process #" << waited_pid << " ";
 
     if (WIFEXITED(status)) {
         int retval = WEXITSTATUS(status);
@@ -148,12 +145,12 @@ pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status, int* entry) {
             *entry = retval;
         }
 
-        cout << "exited normally with value " << retval;
+        logger_ << "exited normally with value " << retval;
     } else if (WIFSIGNALED(status)) {
         tracee_status = TraceeStatus::TERMINATED;
         int signal_num = WTERMSIG(status);
         char* signal_name = strsignal(signal_num);
-        cout << "terminated by " << signal_name << " (#" << signal_num << ")";
+        logger_ << "terminated by " << signal_name << " (#" << signal_num << ")";
 
         if (entry) {
             *entry = signal_num;
@@ -165,7 +162,7 @@ pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status, int* entry) {
             tracee_status = TraceeStatus::SYSCALLED;
 
             int syscall_num = get_tracee_reg(waited_pid, orig_rax);
-            cout << "syscalled with " << (Syscall(syscall_num)).syscallToString();
+            logger_ << "syscalled with " << (Syscall(syscall_num)).syscallToString();
 
             if (entry) {
                 *entry = syscall_num;
@@ -174,7 +171,7 @@ pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status, int* entry) {
         } else {
             tracee_status = TraceeStatus::SIGNALED;
             char* signal_name = strsignal(signal_num);
-            cout << "stopped by " << signal_name << " (#" << signal_num << ")";
+            logger_ << "stopped by " << signal_name << " (#" << signal_num << ")";
 
             if (entry) {
                 *entry = signal_num;
@@ -184,9 +181,9 @@ pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status, int* entry) {
         assert(0); // we shouldn't get here if we use wait()
         // only waitpid() may return it if (options|WCONTINUED == WCONTINUED)
         tracee_status = TraceeStatus::CONTINUED;
-        cout << "continued";
+        logger_ << "continued";
     }
-    cout << endl;
+    logger_ << logger_.endl;
     return waited_pid;
 }
 

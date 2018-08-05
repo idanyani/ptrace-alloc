@@ -5,6 +5,8 @@
 #include <stdexcept>
 
 #include "syscall.h"
+#include "logger.h"
+
 
 class Ptrace {
   public:
@@ -49,8 +51,9 @@ class Ptrace {
     pid_t waitForDescendant(TraceeStatus& tracee_status, int* entry = nullptr);
 
     // private data
-    pid_t tracee_pid_;
-    bool  in_kernel_;
+    pid_t   tracee_pid_;
+    bool    in_kernel_;
+    Logger  logger_;
 };
 
 
