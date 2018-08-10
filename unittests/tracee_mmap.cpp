@@ -1,12 +1,12 @@
 #include <iostream>
-
+#include <csignal>
 #include <unistd.h>
 #include <sys/mman.h>
 #include <assert.h>
 
 
 int main() {
-    if (getpid() == 0) return 1;// this is to prevent optimizing out getpid call
+    if (kill(getpid(), 0) != 0) return -1;
 
     intptr_t res = (intptr_t) mmap(NULL,
                                    4,
