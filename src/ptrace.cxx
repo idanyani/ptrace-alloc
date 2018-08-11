@@ -52,7 +52,7 @@ Ptrace::Ptrace(const std::string& executable, char* args[]) :
 
     if (tracee_pid_== 0) {
         // child process
-        logger_ << "Tracee process id = " << getpid() << logger_.endl;
+        logger_ << "Tracee process id = " << getpid() << Logger::endl;
 
         SAFE_SYSCALL(ptrace(PTRACE_TRACEME, 0, NULL, NULL));
         SAFE_SYSCALL(execv(executable.c_str(), args));
@@ -162,7 +162,7 @@ pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status, int* entry) {
             tracee_status = TraceeStatus::SYSCALLED;
 
             int syscall_num = get_tracee_reg(waited_pid, orig_rax);
-            logger_ << "syscalled with " << (Syscall(syscall_num)).syscallToString();
+            logger_ << "syscalled with " << Syscall(syscall_num);
 
             if (entry) {
                 *entry = syscall_num;
@@ -183,7 +183,7 @@ pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status, int* entry) {
         tracee_status = TraceeStatus::CONTINUED;
         logger_ << "continued";
     }
-    logger_ << logger_.endl;
+    logger_ << Logger::endl;
     return waited_pid;
 }
 

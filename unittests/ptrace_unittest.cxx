@@ -26,7 +26,7 @@ class PtraceTest : public ::testing::Test {
                 return;
         }
 
-        FAIL() << "to many tries";
+        FAIL() << kill_syscall << " wasn't found in the first " << max_tries << " syscalls";
     }
 
     std::unique_ptr<Ptrace> p_ptrace;
@@ -39,15 +39,15 @@ TEST_F(PtraceTest, BasicTest) {
     start_tracee("./tracee");
 
     auto syscall_info = p_ptrace->runUntilSyscallGate();
-    EXPECT_EQ(std::string(syscall_info.first.syscallToString()) , "close");
+    EXPECT_EQ(std::string(syscall_info.first.toString()) , "close");
     ASSERT_EQ(syscall_info.second , Ptrace::SyscallDirection::ENTRY);
 
     syscall_info = p_ptrace->runUntilSyscallGate();
-    EXPECT_EQ(std::string(syscall_info.first.syscallToString()) , "close");
+    EXPECT_EQ(std::string(syscall_info.first.toString()) , "close");
     ASSERT_EQ(syscall_info.second , Ptrace::SyscallDirection::EXIT);
 
     syscall_info = p_ptrace->runUntilSyscallGate();
-    EXPECT_EQ(std::string(syscall_info.first.syscallToString()) , "exit_group");
+    EXPECT_EQ(std::string(syscall_info.first.toString()) , "exit_group");
     EXPECT_EQ(syscall_info.second , Ptrace::SyscallDirection::ENTRY);
 
     EXPECT_THROW(syscall_info = p_ptrace->runUntilSyscallGate(), std::system_error);
@@ -57,7 +57,7 @@ TEST_F(PtraceTest, MmapHijackTest) {
     start_tracee("./tracee_mmap");
 
     auto syscall_info = p_ptrace->runUntilSyscallGate();
-    EXPECT_EQ(std::string(syscall_info.first.syscallToString()) , "mmap");
+    EXPECT_EQ(std::string(syscall_info.first.toString()) , "mmap");
     ASSERT_EQ(syscall_info.second , Ptrace::SyscallDirection::ENTRY);
 
     // modify mmap to return getpid()

@@ -20,12 +20,17 @@ class Syscall {
 
     int getSyscallNum() const;
 
-    std::string const syscallToString();
+    std::string toString() const;
 
   private:
     int num_;
     void validate() const;
 };
 
+static inline
+std::ostream& operator<<(std::ostream& os, const Syscall& syscall) {
+    os << syscall.toString();
+    return os;
+}
 
 #endif //PTRACE_ALLOC_SYSCALL_H
