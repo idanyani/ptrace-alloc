@@ -1,71 +1,74 @@
 #include <cassert>
 #include <wait.h>
+#include <memory>
 #include <googletest/include/gtest/gtest.h>
 #include "ptrace.h"
 
 
-TEST(PtraceTest, BasicTest) {
-    char* args[] = {const_cast<char*>("./tracee"), nullptr};
+class PtraceTest : public ::testing::Test {
+  protected:
+    PtraceTest() : kill_syscall("kill") {}
 
-    Ptrace ptrace(args[0], args);
+    void start_tracee(const char* tracee_path) {
+        char* args[] = {const_cast<char*>(tracee_path), nullptr};
 
-    decltype(ptrace.runUntilSyscallGate()) syscall_info;
+        p_ptrace.reset(new Ptrace(args[0], args));
 
-    Syscall kill_syscall("kill");
+        const auto max_tries = 1000;
+        for (auto i = 0; i < max_tries; ++i) {
+            auto syscall_info = p_ptrace->runUntilSyscallGate();
+            ASSERT_EQ(syscall_info.second, Ptrace::SyscallDirection::ENTRY);
 
-    while (syscall_info.first != kill_syscall) {
-        syscall_info = ptrace.runUntilSyscallGate();
-        ASSERT_EQ(syscall_info.second, Ptrace::SyscallDirection::ENTRY);
+            syscall_info = p_ptrace->runUntilSyscallGate();
+            ASSERT_EQ(syscall_info.second, Ptrace::SyscallDirection::EXIT);
 
-        syscall_info = ptrace.runUntilSyscallGate();
-        ASSERT_EQ(syscall_info.second, Ptrace::SyscallDirection::EXIT);
+            if (syscall_info.first == kill_syscall)
+                return;
+        }
+
+        FAIL() << "to many tries";
     }
 
-    syscall_info = ptrace.runUntilSyscallGate();
+    std::unique_ptr<Ptrace> p_ptrace;
+    const Syscall           kill_syscall;
+
+};
+
+
+TEST_F(PtraceTest, BasicTest) {
+    start_tracee("./tracee");
+
+    auto syscall_info = p_ptrace->runUntilSyscallGate();
     EXPECT_EQ(std::string(syscall_info.first.syscallToString()) , "close");
     ASSERT_EQ(syscall_info.second , Ptrace::SyscallDirection::ENTRY);
 
-    syscall_info = ptrace.runUntilSyscallGate();
+    syscall_info = p_ptrace->runUntilSyscallGate();
     EXPECT_EQ(std::string(syscall_info.first.syscallToString()) , "close");
     ASSERT_EQ(syscall_info.second , Ptrace::SyscallDirection::EXIT);
 
-    syscall_info = ptrace.runUntilSyscallGate();
+    syscall_info = p_ptrace->runUntilSyscallGate();
     EXPECT_EQ(std::string(syscall_info.first.syscallToString()) , "exit_group");
     EXPECT_EQ(syscall_info.second , Ptrace::SyscallDirection::ENTRY);
 
-    EXPECT_THROW(syscall_info = ptrace.runUntilSyscallGate(), std::system_error);
+    EXPECT_THROW(syscall_info = p_ptrace->runUntilSyscallGate(), std::system_error);
 }
 
-TEST(PtraceTest, MmapHijackTest) {
-    char* args[] = {const_cast<char*>("./tracee_mmap"), nullptr};
+TEST_F(PtraceTest, MmapHijackTest) {
+    start_tracee("./tracee_mmap");
 
-    Ptrace ptrace(args[0], args);
-
-    decltype(ptrace.runUntilSyscallGate()) syscall_info;
-
-    Syscall kill_syscall("kill");
-
-    while (syscall_info.first != kill_syscall) {
-        syscall_info = ptrace.runUntilSyscallGate();
-        ASSERT_EQ(syscall_info.second, Ptrace::SyscallDirection::ENTRY);
-
-        syscall_info = ptrace.runUntilSyscallGate();
-        ASSERT_EQ(syscall_info.second, Ptrace::SyscallDirection::EXIT);
-    }
-
-    syscall_info = ptrace.runUntilSyscallGate();
+    auto syscall_info = p_ptrace->runUntilSyscallGate();
     EXPECT_EQ(std::string(syscall_info.first.syscallToString()) , "mmap");
     ASSERT_EQ(syscall_info.second , Ptrace::SyscallDirection::ENTRY);
 
     // modify mmap to return getpid()
     Syscall getpid_syscall("getpid");
-    ptrace.pokeSyscall(getpid_syscall);
+    p_ptrace->pokeSyscall(getpid_syscall);
 
-    syscall_info = ptrace.runUntilSyscallGate();
+    syscall_info = p_ptrace->runUntilSyscallGate();
     EXPECT_EQ(syscall_info.first , getpid_syscall);
     ASSERT_EQ(syscall_info.second , Ptrace::SyscallDirection::EXIT);
 
-    auto exit_status = ptrace.runUntilExit();
+    auto exit_status = p_ptrace->runUntilExit();
     ASSERT_TRUE(exit_status.second);
     EXPECT_EQ(0, exit_status.first);
 }
