@@ -18,10 +18,10 @@ int main(int argc, char* argv[]) {
     cout << "Tracer process id = " << getpid() << endl;
 
     // TODO: we can get the args via argv
-    char* args[] = {const_cast<char*>("date"), NULL};
+    char* args[] = {const_cast<char*>("date"), nullptr};
     Ptrace ptrace("./child_mmap", args);
 
-    while (1) {
+    while (true) {
         Ptrace::SyscallDirection direction;
 
         try {
