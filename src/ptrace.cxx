@@ -1,16 +1,15 @@
 #include "ptrace.h"
 
-#include <cassert>
-#include <cstring>
-#include <system_error>
-
+#include <cassert> // assert
+#include <cstring> // strsignal
+#include <system_error> // std::system_error
+#include <cstddef> // offsetof
 #include <csignal>
 #include <sys/ptrace.h>
 #include <sys/wait.h>
-#include <unistd.h>
-#include <sys/user.h>
+#include <unistd.h> // fork/execv
+#include <sys/user.h> // struct user
 
-#include "syscall.h"
 
 using std::string;
 
@@ -36,7 +35,6 @@ T handleSyscallReturnValue(T syscall_return_value, unsigned code_line) {
     }) // https://gcc.gnu.org/onlinedocs/gcc/Statement-Exprs.html
 
 
-#define offsetof(type, member)              __builtin_offsetof (type, member)
 #define get_tracee_reg(child_id, reg_name)  _get_reg(child_id, offsetof(struct user, regs.reg_name))
 
 long _get_reg(pid_t child_id, int offset) {
