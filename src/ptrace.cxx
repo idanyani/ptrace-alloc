@@ -45,7 +45,7 @@ long _get_reg(pid_t child_id, int offset) {
 
 
 Ptrace::Ptrace(const std::string& executable, char* args[]) :
-        tracee_pid_(0), in_kernel_(false) {
+        tracee_pid_(0), grand_child_pid_(0), in_kernel_(false) {
     tracee_pid_ = SAFE_SYSCALL(fork());
 
     if (tracee_pid_== 0) { // child process
@@ -62,7 +62,8 @@ Ptrace::Ptrace(const std::string& executable, char* args[]) :
     assert(tracee_status == TraceeStatus::SIGNALED);
 
     // after the child has stopped, we can now set the correct options
-    SAFE_SYSCALL(ptrace(PTRACE_SETOPTIONS, tracee_pid_, NULL, PTRACE_O_TRACESYSGOOD));
+    SAFE_SYSCALL(ptrace(PTRACE_SETOPTIONS, tracee_pid_, NULL,
+                        PTRACE_O_TRACESYSGOOD | PTRACE_O_TRACEFORK | PTRACE_O_TRACECLONE));
 }
 
 Ptrace::~Ptrace() {
@@ -82,10 +83,17 @@ std::pair<Syscall, Ptrace::SyscallDirection> Ptrace::runUntilSyscallGate() {
             entry = 0;
         }
 
-        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, tracee_pid_, NULL, entry));
+        try {
+            SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, tracee_pid_, NULL, entry));
+        } catch (const std::system_error& e){
+            std::string no_proc_err("No such process");
+            std::string exc_err(e.what());
+            if(exc_err.find(no_proc_err) != std::string::npos)
+                SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, grand_child_pid_, NULL, entry));
+        }
 
         auto descendant_pid = waitForDescendant(tracee_status, &entry);
-        assert(descendant_pid == tracee_pid_);
+        assert(descendant_pid);
 
     } while (tracee_status != TraceeStatus::SYSCALLED);
 
@@ -134,7 +142,21 @@ pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status, int* entry) {
 
     logger_ << "Process #" << waited_pid << " ";
 
-    if (WIFEXITED(status)) {
+    // Obtainig granchild's pid, the grandchild is not stopped yet
+    if(status>>8 == (SIGTRAP | (PTRACE_EVENT_FORK<<8))){
+        pid_t grand_child;
+        SAFE_SYSCALL(ptrace(PTRACE_GETEVENTMSG, tracee_pid_, NULL, &grand_child));
+        logger_ << "Granchild was born with fork with pid " <<  grand_child << logger_.endl;
+
+        grand_child_pid_ = grand_child;
+        //SAFE_SYSCALL(ptrace(PTRACE_SETOPTIONS, grand_child, NULL, PTRACE_O_TRACESYSGOOD));
+
+    } else if (status>>8 == (SIGTRAP | (PTRACE_EVENT_CLONE<<8))) {
+        pid_t grand_child;
+        SAFE_SYSCALL(ptrace(PTRACE_GETEVENTMSG, tracee_pid_, NULL, &grand_child));
+        logger_ << "Granchild was born with clone with pid " <<  grand_child << logger_.endl;
+
+    } else if (WIFEXITED(status)) {
         int retval = WEXITSTATUS(status);
         tracee_status = TraceeStatus::EXITED;
 
@@ -153,6 +175,11 @@ pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status, int* entry) {
             *entry = signal_num;
         }
     } else if (WIFSTOPPED(status)) {
+
+        if(waited_pid == grand_child_pid_ && grand_child_pid_){
+            SAFE_SYSCALL(ptrace(PTRACE_SETOPTIONS, grand_child_pid_, NULL, PTRACE_O_TRACESYSGOOD));
+        }
+
         int signal_num = WSTOPSIG(status);
         if (signal_num & PTRACE_O_TRACESYSGOOD_MASK) {
             assert(signal_num == (SIGTRAP | PTRACE_O_TRACESYSGOOD_MASK));
