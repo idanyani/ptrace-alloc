@@ -1,14 +1,14 @@
 #include "ptrace.h"
 
-#include <cassert> // assert
-#include <cstring> // strsignal
-#include <system_error> // std::system_error
-#include <cstddef> // offsetof
-#include <csignal>
+#include <sys/user.h> // struct user
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 #include <unistd.h> // fork/execv
-#include <sys/user.h> // struct user
+#include <cassert> // assert
+#include <csignal>
+#include <cstddef> // offsetof
+#include <cstring> // strsignal
+#include <system_error> // std::system_error
 
 
 using std::string;
@@ -44,8 +44,8 @@ long _get_reg(pid_t child_id, int offset) {
 #define PTRACE_O_TRACESYSGOOD_MASK  0x80
 
 
-Ptrace::Ptrace(const std::string& executable, char* args[]) :
-        tracee_pid_(0), in_kernel_(false) {
+Ptrace::Ptrace(const std::string& executable, char* args[], EventHandler& eventHandler) :
+        eventHandler_(eventHandler), tracee_pid_(0), in_kernel_(false) {
     tracee_pid_ = SAFE_SYSCALL(fork());
 
     if (tracee_pid_== 0) { // child process
@@ -56,10 +56,11 @@ Ptrace::Ptrace(const std::string& executable, char* args[]) :
     }
 
     logger_ << "Tracee process id = " << tracee_pid_ << Logger::endl;
-    TraceeStatus tracee_status;
-    pid_t descendant_pid = waitForDescendant(tracee_status);
-    assert(descendant_pid == tracee_pid_);
-    assert(tracee_status == TraceeStatus::SIGNALED);
+
+    int status;
+    const pid_t descendant_pid = wait(&status);
+    assert(descendant_pid == tracee_pid_); //TODO: will fail on grandchildren tracing
+    assert(WIFSTOPPED(status));
 
     // after the child has stopped, we can now set the correct options
     SAFE_SYSCALL(ptrace(PTRACE_SETOPTIONS, tracee_pid_, NULL, PTRACE_O_TRACESYSGOOD));
@@ -71,117 +72,70 @@ Ptrace::~Ptrace() {
     }
 }
 
-std::pair<Syscall, Ptrace::SyscallDirection> Ptrace::runUntilSyscallGate() {
-
-    TraceeStatus tracee_status = TraceeStatus::SYSCALLED;
-    int entry = 0;
-
-    do {
-        if (tracee_status != TraceeStatus::SIGNALED) {
-            // preserve signal only when signal is sent
-            entry = 0;
-        }
-
-        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, tracee_pid_, NULL, entry));
-
-        auto descendant_pid = waitForDescendant(tracee_status, &entry);
-        assert(descendant_pid == tracee_pid_);
-
-    } while (tracee_status != TraceeStatus::SYSCALLED);
-
-
-    // currently this condition is always true
-    if (tracee_status == TraceeStatus::SYSCALLED) {
-        in_kernel_ = !in_kernel_;
-    }
-
-    auto direction = in_kernel_ ? SyscallDirection::ENTRY : SyscallDirection::EXIT;
-
-    return std::make_pair(Syscall(entry), direction);
+static constexpr
+Ptrace::SyscallDirection getDirection(bool in_kernel) {
+    return in_kernel ? Ptrace::SyscallDirection::ENTRY : Ptrace::SyscallDirection::EXIT;
 }
 
-std::pair<int, bool> Ptrace::runUntilExit() {
-    if (in_kernel_) {// preserve "in_kernel_" validity
-        runUntilSyscallGate();
-    }
-
-    TraceeStatus tracee_status = TraceeStatus::SYSCALLED;
-    int entry = 0;
-
-    do {
-        if (tracee_status != TraceeStatus::SIGNALED) {
-            // preserve signal only when signal is sent
-            entry = 0;
-        }
-
-        SAFE_SYSCALL(ptrace(PTRACE_CONT, tracee_pid_, NULL, entry));
-
-        auto descendant_pid = waitForDescendant(tracee_status, &entry);
-        assert(descendant_pid == tracee_pid_);
-
-    } while (tracee_status != TraceeStatus::EXITED && tracee_status != TraceeStatus::TERMINATED);
-
-    return std::make_pair(entry, tracee_status == TraceeStatus::EXITED);
+static
+std::ostream& operator<<(std::ostream& os, Ptrace::SyscallDirection direction) {
+    os << "direction: " << (direction == Ptrace::SyscallDirection::ENTRY ? "ENTRY" : "EXIT");
+    return os;
 }
 
-pid_t Ptrace::waitForDescendant(TraceeStatus& tracee_status, int* entry) {
-    int status;
-    pid_t waited_pid = wait(&status);
-    if (waited_pid < 0) {
-        assert(errno == ECHILD);
-        throw NoChildren();
-    } // else, one of the descendants changed state
+void Ptrace::trace() {
+    int signal_num = 0;
+    while (true) {
+        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, tracee_pid_, NULL, signal_num));
 
-    logger_ << "Process #" << waited_pid << " ";
+        int status;
+        pid_t waited_pid = wait(&status);
+        assert(waited_pid == tracee_pid_); //TODO: will fail on grandchildren tracing
+        if (waited_pid < 0) {
+            assert(errno == ECHILD);
+            break;
+        } // else, one of the descendants changed state
 
-    if (WIFEXITED(status)) {
-        int retval = WEXITSTATUS(status);
-        tracee_status = TraceeStatus::EXITED;
+        logger_ << "Process #" << waited_pid << " ";
 
-        if (entry) {
-            *entry = retval;
-        }
+        if (WIFEXITED(status)) {
+            int retval = WEXITSTATUS(status);
 
-        logger_ << "exited normally with value " << retval;
-    } else if (WIFSIGNALED(status)) {
-        tracee_status = TraceeStatus::TERMINATED;
-        int signal_num = WTERMSIG(status);
-        char* signal_name = strsignal(signal_num);
-        logger_ << "terminated by " << signal_name << " (#" << signal_num << ")";
-
-        if (entry) {
-            *entry = signal_num;
-        }
-    } else if (WIFSTOPPED(status)) {
-        int signal_num = WSTOPSIG(status);
-        if (signal_num & PTRACE_O_TRACESYSGOOD_MASK) {
-            assert(signal_num == (SIGTRAP | PTRACE_O_TRACESYSGOOD_MASK));
-            tracee_status = TraceeStatus::SYSCALLED;
-
-            auto syscall_num = static_cast<int>(get_tracee_reg(waited_pid, orig_rax));
-            logger_ << "syscalled with " << Syscall(syscall_num);
-
-            if (entry) {
-                *entry = syscall_num;
-            }
-
-        } else {
-            tracee_status = TraceeStatus::SIGNALED;
+            logger_ << "exited normally with value " << retval << Logger::endl;
+            eventHandler_.onExit(waited_pid, retval);
+            return;
+        } else if (WIFSIGNALED(status)) {
+            signal_num = WTERMSIG(status);
             char* signal_name = strsignal(signal_num);
-            logger_ << "stopped by " << signal_name << " (#" << signal_num << ")";
 
-            if (entry) {
-                *entry = signal_num;
+            logger_ << "terminated by " << signal_name << " (#" << signal_num << ")" << Logger::endl;
+            eventHandler_.onTerminate(waited_pid, signal_num);
+            return;
+        } else if (WIFSTOPPED(status)) {
+            signal_num = WSTOPSIG(status);
+            if (signal_num & PTRACE_O_TRACESYSGOOD_MASK) {
+                assert(signal_num == (SIGTRAP | PTRACE_O_TRACESYSGOOD_MASK));
+
+                Syscall syscall(static_cast<int>(get_tracee_reg(waited_pid, orig_rax)));
+
+                in_kernel_ = !in_kernel_;
+
+                const auto syscallDirection = getDirection(in_kernel_);
+                logger_ << "syscalled with \"" << syscall << "\"; " << syscallDirection << Logger::endl;
+                eventHandler_.onSyscall(waited_pid, syscall, syscallDirection);
+                signal_num = 0;
+            } else {
+                char* signal_name = strsignal(signal_num);
+
+                logger_ << "stopped by " << signal_name << " (#" << signal_num << ")" << Logger::endl;
+                eventHandler_.onSignal(waited_pid, signal_num);
             }
+        } else if (WIFCONTINUED(status)) {
+            assert(0); // we shouldn't get here if we use wait()
+            // only waitpid() may return it if (options|WCONTINUED == WCONTINUED)
+            logger_ << "continued" << Logger::endl;
         }
-    } else if (WIFCONTINUED(status)) {
-        assert(0); // we shouldn't get here if we use wait()
-        // only waitpid() may return it if (options|WCONTINUED == WCONTINUED)
-        tracee_status = TraceeStatus::CONTINUED;
-        logger_ << "continued";
     }
-    logger_ << Logger::endl;
-    return waited_pid;
 }
 
 void Ptrace::pokeSyscall(const Syscall& syscallToRun) {
