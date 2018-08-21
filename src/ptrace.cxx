@@ -44,8 +44,8 @@ long _get_reg(pid_t child_id, int offset) {
 #define PTRACE_O_TRACESYSGOOD_MASK  0x80
 
 
-Ptrace::Ptrace(const std::string& executable, char* args[], EventHandler& eventHandler) :
-        eventHandler_(eventHandler), tracee_pid_(0), in_kernel_(false) {
+Ptrace::Ptrace(const std::string& executable, char* args[], EventHandler& event_handler)
+        : event_handler_(event_handler), tracee_pid_(0), in_kernel_(false) {
     tracee_pid_ = SAFE_SYSCALL(fork());
 
     if (tracee_pid_== 0) { // child process
@@ -102,14 +102,14 @@ void Ptrace::trace() {
             int retval = WEXITSTATUS(status);
 
             logger_ << "exited normally with value " << retval << Logger::endl;
-            eventHandler_.onExit(waited_pid, retval);
+            event_handler_.onExit(waited_pid, retval);
             return;
         } else if (WIFSIGNALED(status)) {
             signal_num = WTERMSIG(status);
             char* signal_name = strsignal(signal_num);
 
             logger_ << "terminated by " << signal_name << " (#" << signal_num << ")" << Logger::endl;
-            eventHandler_.onTerminate(waited_pid, signal_num);
+            event_handler_.onTerminate(waited_pid, signal_num);
             return;
         } else if (WIFSTOPPED(status)) {
             signal_num = WSTOPSIG(status);
@@ -120,15 +120,15 @@ void Ptrace::trace() {
 
                 in_kernel_ = !in_kernel_;
 
-                const auto syscallDirection = getDirection(in_kernel_);
-                logger_ << "syscalled with \"" << syscall << "\"; " << syscallDirection << Logger::endl;
-                eventHandler_.onSyscall(waited_pid, syscall, syscallDirection);
+                const auto syscall_direction = getDirection(in_kernel_);
+                logger_ << "syscalled with \"" << syscall << "\"; " << syscall_direction << Logger::endl;
+                event_handler_.onSyscall(waited_pid, syscall, syscall_direction);
                 signal_num = 0;
             } else {
                 char* signal_name = strsignal(signal_num);
 
                 logger_ << "stopped by " << signal_name << " (#" << signal_num << ")" << Logger::endl;
-                eventHandler_.onSignal(waited_pid, signal_num);
+                event_handler_.onSignal(waited_pid, signal_num);
             }
         } else if (WIFCONTINUED(status)) {
             assert(0); // we shouldn't get here if we use wait()
@@ -138,8 +138,8 @@ void Ptrace::trace() {
     }
 }
 
-void Ptrace::pokeSyscall(const Syscall& syscallToRun) {
+void Ptrace::pokeSyscall(const Syscall& syscall_to_run) {
     assert(in_kernel_);
     SAFE_SYSCALL(ptrace(PTRACE_POKEUSER, tracee_pid_,
-                        offsetof(struct user, regs.orig_rax), syscallToRun.getSyscallNum()));
+                        offsetof(struct user, regs.orig_rax), syscall_to_run.getSyscallNum()));
 }

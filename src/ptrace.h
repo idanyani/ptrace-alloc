@@ -39,14 +39,14 @@ class Ptrace {
     Ptrace(const Ptrace&) = delete;
     Ptrace& operator=(const Ptrace&) = delete;
 
-    void pokeSyscall(const Syscall& syscallToRun);
+    void pokeSyscall(const Syscall& syscall_to_run);
 
     pid_t getChildPid() const {
         return tracee_pid_;
     }
 
   private:
-    EventHandler&   eventHandler_;
+    EventHandler&   event_handler_;
     pid_t           tracee_pid_;
     bool            in_kernel_;
     Logger          logger_;
