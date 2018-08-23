@@ -44,8 +44,8 @@ long _get_reg(pid_t child_id, int offset) {
 #define PTRACE_O_TRACESYSGOOD_MASK  0x80
 
 
-Ptrace::Ptrace(const std::string& executable, char* args[], EventHandler& event_handler)
-        : event_handler_(event_handler), tracee_pid_(0), in_kernel_(false) {
+Ptrace::Ptrace(const std::string& executable, char* args[], EventCallbacks& event_handler)
+        : event_callbacks_(event_handler), tracee_pid_(0), in_kernel_(false) {
     tracee_pid_ = SAFE_SYSCALL(fork());
 
     if (tracee_pid_== 0) { // child process
@@ -83,7 +83,7 @@ std::ostream& operator<<(std::ostream& os, Ptrace::SyscallDirection direction) {
     return os;
 }
 
-void Ptrace::trace() {
+void Ptrace::startTracing() {
     int signal_num = 0;
     while (true) {
         SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, tracee_pid_, NULL, signal_num));
@@ -102,14 +102,14 @@ void Ptrace::trace() {
             int retval = WEXITSTATUS(status);
 
             logger_ << "exited normally with value " << retval << Logger::endl;
-            event_handler_.onExit(waited_pid, retval);
+            event_callbacks_.onExit(waited_pid, retval);
             return;
         } else if (WIFSIGNALED(status)) {
             signal_num = WTERMSIG(status);
             char* signal_name = strsignal(signal_num);
 
             logger_ << "terminated by " << signal_name << " (#" << signal_num << ")" << Logger::endl;
-            event_handler_.onTerminate(waited_pid, signal_num);
+            event_callbacks_.onTerminate(waited_pid, signal_num);
             return;
         } else if (WIFSTOPPED(status)) {
             signal_num = WSTOPSIG(status);
@@ -122,13 +122,13 @@ void Ptrace::trace() {
 
                 const auto syscall_direction = getDirection(in_kernel_);
                 logger_ << "syscalled with \"" << syscall << "\"; " << syscall_direction << Logger::endl;
-                event_handler_.onSyscall(waited_pid, syscall, syscall_direction);
+                event_callbacks_.onSyscall(waited_pid, syscall, syscall_direction);
                 signal_num = 0;
             } else {
                 char* signal_name = strsignal(signal_num);
 
                 logger_ << "stopped by " << signal_name << " (#" << signal_num << ")" << Logger::endl;
-                event_handler_.onSignal(waited_pid, signal_num);
+                event_callbacks_.onSignal(waited_pid, signal_num);
             }
         } else if (WIFCONTINUED(status)) {
             assert(0); // we shouldn't get here if we use wait()

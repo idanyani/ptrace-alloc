@@ -18,9 +18,9 @@ class Ptrace {
     /// Base class. derive and implement the event functions you are interested in.
     /// If for some reason "virtual" making a performance impact, we can "easily"
     /// swap this with static polymorphism (templates).
-    class EventHandler {
+    class EventCallbacks {
       public:
-        virtual ~EventHandler() = default;
+        virtual ~EventCallbacks() = default;
 
         virtual void onExit     (pid_t, int retval)     {}
         virtual void onTerminate(pid_t, int signal_num) {}
@@ -29,11 +29,11 @@ class Ptrace {
         virtual void onSyscall  (pid_t, const Syscall&, SyscallDirection) {}
     };
 
-    Ptrace(const std::string& executable, char* args[], EventHandler&);
+    Ptrace(const std::string& executable, char* args[], EventCallbacks&);
 
     ~Ptrace();
 
-    void trace();
+    void startTracing();
 
     // non copyable
     Ptrace(const Ptrace&) = delete;
@@ -46,7 +46,7 @@ class Ptrace {
     }
 
   private:
-    EventHandler&   event_handler_;
+    EventCallbacks& event_callbacks_;
     pid_t           tracee_pid_;
     bool            in_kernel_;
     Logger          logger_;
