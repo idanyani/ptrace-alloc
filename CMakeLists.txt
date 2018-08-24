@@ -7,7 +7,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -pthread")
 set(SRC src)
 
 include_directories(${SRC})
-add_executable(tracer ${SRC}/main.cxx ${SRC}/ptrace.cxx ${SRC}/syscall.cxx)
+add_executable(tracer ${SRC}/main.cxx ${SRC}/ptrace.cxx ${SRC}/syscall.cxx src/FirstFitAllocator.cpp src/FirstFitAllocator.h src/MemoryIntervalList.cpp src/MemoryIntervalList.h src/Globals.h src/MosaicRegion.cpp src/MosaicRegion.h src/MosaicConfiguration.cpp src/MosaicConfiguration.h)
 
 ### GTEST ###
 set(GTEST_SRC_DIR googletest)
