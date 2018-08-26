@@ -10,6 +10,7 @@
 using ::testing::_;
 using ::testing::AtLeast;
 using ::testing::InSequence;
+using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
 
 enum class SyscallDirection {
@@ -67,22 +68,21 @@ class PtraceTest : public ::testing::Test {
         ASSERT_EQ(write(command_pipe[1], &command, sizeof(command)), (ssize_t)sizeof(command));
     }
 
-    template <typename Data>
-    void receiveData(Data expected) {
+    void receivePid() {
         const Syscall write_syscall("write");
 
         EXPECT_CALL(mock_event_callbacks,
-                    onSyscall(p_ptrace->getChildPid(),
+                    onSyscall(_,
                               write_syscall,
                               SyscallDirection::ENTRY));
         EXPECT_CALL(mock_event_callbacks,
-                    onSyscall(p_ptrace->getChildPid(), write_syscall, SyscallDirection::EXIT))
-                    .WillOnce(InvokeWithoutArgs([=]() {
-                        Data received;
-                        ASSERT_EQ(read(data_pipe[0], &received, sizeof(received)),
-                                  (ssize_t) sizeof(received));
-                        ASSERT_EQ(expected, received);
-                    }));
+                    onSyscall(_, write_syscall, SyscallDirection::EXIT))
+                .WillOnce(Invoke([=](pid_t pid, Syscall, SyscallDirection) {
+                    pid_t received;
+                    ASSERT_EQ(read(data_pipe[0], &received, sizeof(received)),
+                              (ssize_t) sizeof(received));
+                    ASSERT_EQ(pid, received);
+                }));
     }
 
     std::unique_ptr<Ptrace> p_ptrace;
@@ -187,7 +187,7 @@ TEST_F(PtraceTest, MmapHijackTest) {
                           Syscall("getpid"),
                           SyscallDirection::EXIT));
 
-    receiveData(p_ptrace->getChildPid());
+    receivePid();
 
     EXPECT_CALL(mock_event_callbacks,
                 onSyscall(p_ptrace->getChildPid(),

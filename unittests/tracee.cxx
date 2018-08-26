@@ -7,20 +7,23 @@
 static const int command_fd = 3;
 static const int result_fd  = 6;
 
+bool sendPid(pid_t pid) {
+    return write(result_fd, &pid, sizeof(pid)) != sizeof(pid);
+}
+
 int test0() {
-    close(0);
-    return 0;
+    return close(0);
 }
 
 int test1() {
-    const auto res = (pid_t)(intptr_t) mmap(nullptr,
+    const auto pid = (pid_t)(intptr_t) mmap(nullptr,
                                             4,
                                             PROT_READ | PROT_WRITE,
                                             MAP_PRIVATE | MAP_ANONYMOUS,
                                             -1,
                                             0);
 
-    return write(result_fd, &res, sizeof(res)) != sizeof(res);
+    return sendPid(pid);
 }
 
 int main() {
