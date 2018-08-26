@@ -72,17 +72,6 @@ Ptrace::~Ptrace() {
     }
 }
 
-static constexpr
-Ptrace::SyscallDirection getDirection(bool in_kernel) {
-    return in_kernel ? Ptrace::SyscallDirection::ENTRY : Ptrace::SyscallDirection::EXIT;
-}
-
-static
-std::ostream& operator<<(std::ostream& os, Ptrace::SyscallDirection direction) {
-    os << "direction: " << (direction == Ptrace::SyscallDirection::ENTRY ? "ENTRY" : "EXIT");
-    return os;
-}
-
 void Ptrace::startTracing() {
     int signal_num = 0;
     while (true) {
@@ -120,9 +109,14 @@ void Ptrace::startTracing() {
 
                 in_kernel_ = !in_kernel_;
 
-                const auto syscall_direction = getDirection(in_kernel_);
-                logger_ << "syscalled with \"" << syscall << "\"; " << syscall_direction << Logger::endl;
-                event_callbacks_.onSyscall(waited_pid, syscall, syscall_direction);
+                
+                if (in_kernel_) {
+                    event_callbacks_.onSyscallEnter(waited_pid, syscall);
+                } else {
+                    event_callbacks_.onSyscallExit(waited_pid, syscall);
+                }
+
+                logger_ << "syscalled with \"" << syscall << "\"; " << (in_kernel_ ? "Enter" : "Exit") << Logger::endl;
                 signal_num = 0;
             } else {
                 char* signal_name = strsignal(signal_num);

@@ -12,10 +12,31 @@ using ::testing::AtLeast;
 using ::testing::InSequence;
 using ::testing::InvokeWithoutArgs;
 
+enum class SyscallDirection {
+    ENTRY, EXIT
+};
+
 class MockEventCallbacks : public Ptrace::EventCallbacks {
   public:
-    MOCK_METHOD2(onExit     , void(pid_t, int retval));
-    MOCK_METHOD3(onSyscall  , void(pid_t, const Syscall&, Ptrace::SyscallDirection));
+    MockEventCallbacks() : inside_kernel(false) {}
+
+    MOCK_METHOD2(onExit        , void(pid_t, int retval));
+    MOCK_METHOD3(onSyscall     , void(pid_t, const Syscall&, SyscallDirection direction));
+
+    void onSyscallEnter(pid_t pid, Syscall syscall) override {
+        ASSERT_FALSE(inside_kernel);
+        inside_kernel = true;
+        onSyscall(pid, syscall, SyscallDirection::ENTRY);
+    }
+
+    void onSyscallExit(pid_t pid, Syscall syscall) override {
+        ASSERT_TRUE(inside_kernel);
+        inside_kernel = false;
+        onSyscall(pid, syscall, SyscallDirection::EXIT);
+    }
+
+  private:
+    bool inside_kernel;
 };
 
 class PtraceTest : public ::testing::Test {
@@ -37,11 +58,11 @@ class PtraceTest : public ::testing::Test {
         EXPECT_CALL(mock_event_callbacks,
                     onSyscall(p_ptrace->getChildPid(),
                               read_syscall,
-                              Ptrace::SyscallDirection::ENTRY));
+                              SyscallDirection::ENTRY));
         EXPECT_CALL(mock_event_callbacks,
                     onSyscall(p_ptrace->getChildPid(),
                               read_syscall,
-                              Ptrace::SyscallDirection::EXIT));
+                              SyscallDirection::EXIT));
 
         ASSERT_EQ(write(command_pipe[1], &command, sizeof(command)), (ssize_t)sizeof(command));
     }
@@ -53,21 +74,15 @@ class PtraceTest : public ::testing::Test {
         EXPECT_CALL(mock_event_callbacks,
                     onSyscall(p_ptrace->getChildPid(),
                               write_syscall,
-                              Ptrace::SyscallDirection::ENTRY));
+                              SyscallDirection::ENTRY));
         EXPECT_CALL(mock_event_callbacks,
-                    onSyscall(p_ptrace->getChildPid(),
-                              write_syscall,
-                              Ptrace::SyscallDirection::EXIT))
-                .WillOnce(InvokeWithoutArgs(
-                        [=]() {
-                            Data received;
-                            ASSERT_EQ(read(data_pipe[0],
-                                           &received,
-                                           sizeof(received)),
-                                      (ssize_t) sizeof(received));
-                            ASSERT_EQ(expected, received);
-                        }
-                ));
+                    onSyscall(p_ptrace->getChildPid(), write_syscall, SyscallDirection::EXIT))
+                    .WillOnce(InvokeWithoutArgs([=]() {
+                        Data received;
+                        ASSERT_EQ(read(data_pipe[0], &received, sizeof(received)),
+                                  (ssize_t) sizeof(received));
+                        ASSERT_EQ(expected, received);
+                    }));
     }
 
     std::unique_ptr<Ptrace> p_ptrace;
@@ -101,22 +116,22 @@ class PtraceTest : public ::testing::Test {
         EXPECT_CALL(mock_event_callbacks,
                     onSyscall(_,
                               kill_syscall,
-                              Ptrace::SyscallDirection::ENTRY));
+                              SyscallDirection::ENTRY));
         EXPECT_CALL(mock_event_callbacks,
                     onSyscall(_,
                               kill_syscall,
-                              Ptrace::SyscallDirection::EXIT));
+                              SyscallDirection::EXIT));
 
         const Syscall close_syscall("close");
         for (auto i = 0; i < 2; ++i) {
             EXPECT_CALL(mock_event_callbacks,
                         onSyscall(_,
                                   close_syscall,
-                                  Ptrace::SyscallDirection::ENTRY));
+                                  SyscallDirection::ENTRY));
             EXPECT_CALL(mock_event_callbacks,
                         onSyscall(_,
                                   close_syscall,
-                                  Ptrace::SyscallDirection::EXIT));
+                                  SyscallDirection::EXIT));
         }
 
         openPipes();
@@ -141,16 +156,16 @@ TEST_F(PtraceTest, BasicTest) {
     EXPECT_CALL(mock_event_callbacks,
                 onSyscall(p_ptrace->getChildPid(),
                           close_syscall,
-                          Ptrace::SyscallDirection::ENTRY));
+                          SyscallDirection::ENTRY));
     EXPECT_CALL(mock_event_callbacks,
                 onSyscall(p_ptrace->getChildPid(),
                           close_syscall,
-                          Ptrace::SyscallDirection::EXIT));
+                          SyscallDirection::EXIT));
 
     EXPECT_CALL(mock_event_callbacks,
                 onSyscall(p_ptrace->getChildPid(),
                           Syscall("exit_group"),
-                          Ptrace::SyscallDirection::ENTRY));
+                          SyscallDirection::ENTRY));
 
     EXPECT_CALL(mock_event_callbacks, onExit(p_ptrace->getChildPid(), 0));
 
@@ -163,21 +178,21 @@ TEST_F(PtraceTest, MmapHijackTest) {
     EXPECT_CALL(mock_event_callbacks,
                 onSyscall(p_ptrace->getChildPid(),
                           Syscall("mmap"),
-                          Ptrace::SyscallDirection::ENTRY))
+                          SyscallDirection::ENTRY))
             .WillOnce(InvokeWithoutArgs([&]() {
                 p_ptrace->pokeSyscall(Syscall("getpid"));
             }));
     EXPECT_CALL(mock_event_callbacks,
                 onSyscall(p_ptrace->getChildPid(),
                           Syscall("getpid"),
-                          Ptrace::SyscallDirection::EXIT));
+                          SyscallDirection::EXIT));
 
     receiveData(p_ptrace->getChildPid());
 
     EXPECT_CALL(mock_event_callbacks,
                 onSyscall(p_ptrace->getChildPid(),
                           Syscall("exit_group"),
-                          Ptrace::SyscallDirection::ENTRY));
+                          SyscallDirection::ENTRY));
 
     EXPECT_CALL(mock_event_callbacks, onExit(p_ptrace->getChildPid(), 0));
 

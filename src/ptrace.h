@@ -11,9 +11,6 @@
 
 class Ptrace {
   public:
-    enum class SyscallDirection {
-        ENTRY, EXIT
-    };
 
     /// Base class. derive and implement the event functions you are interested in.
     /// If for some reason "virtual" making a performance impact, we can "easily"
@@ -26,7 +23,8 @@ class Ptrace {
         virtual void onTerminate(pid_t, int signal_num) {}
         virtual void onSignal   (pid_t, int signal_num) {}
 
-        virtual void onSyscall  (pid_t, const Syscall&, SyscallDirection) {}
+        virtual void onSyscallEnter(pid_t, Syscall) {}
+        virtual void onSyscallExit (pid_t, Syscall) {}
     };
 
     Ptrace(const std::string& executable, char* args[], EventCallbacks&);
