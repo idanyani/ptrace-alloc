@@ -35,11 +35,7 @@ T handleSyscallReturnValue(T syscall_return_value, unsigned code_line) {
     }) // https://gcc.gnu.org/onlinedocs/gcc/Statement-Exprs.html
 
 
-#define get_tracee_reg(child_id, reg_name)  _get_reg(child_id, offsetof(struct user, regs.reg_name))
-
-long _get_reg(pid_t child_id, int offset) {
-    return SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER, child_id, offset));
-}
+#define REG_OFFSET(reg_name_)       offsetof(struct user, regs.reg_name_)
 
 #define PTRACE_O_TRACESYSGOOD_MASK  0x80
 
@@ -105,10 +101,11 @@ void Ptrace::startTracing() {
             if (signal_num & PTRACE_O_TRACESYSGOOD_MASK) {
                 assert(signal_num == (SIGTRAP | PTRACE_O_TRACESYSGOOD_MASK));
 
-                Syscall syscall(static_cast<int>(get_tracee_reg(waited_pid, orig_rax)));
+                Syscall syscall(static_cast<int>(SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER,
+                                                                              waited_pid,
+                                                                              REG_OFFSET(orig_rax)))));
 
                 in_kernel_ = !in_kernel_;
-
                 
                 if (in_kernel_) {
                     event_callbacks_.onSyscallEnter(waited_pid, syscall);
