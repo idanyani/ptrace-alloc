@@ -4,9 +4,11 @@
 #include <string>
 #include <stdexcept>
 #include <sys/types.h>
+#include <set>
 
 #include "syscall.h"
 #include "logger.h"
+#include "process.h"
 
 
 class Ptrace {
@@ -37,16 +39,13 @@ class Ptrace {
     Ptrace(const Ptrace&) = delete;
     Ptrace& operator=(const Ptrace&) = delete;
 
-    void pokeSyscall(const Syscall& syscall_to_run);
-
-    pid_t getChildPid() const {
-        return tracee_pid_;
-    }
+    void pokeSyscall(pid_t pid, Syscall syscall_to_run);
 
   private:
+    using ProcessList = std::set<TracedProcess>; //TODO: replace with hash-table?
+
     EventCallbacks& event_callbacks_;
-    pid_t           tracee_pid_;
-    bool            in_kernel_;
+    ProcessList     process_list_;
     Logger          logger_;
 };
 

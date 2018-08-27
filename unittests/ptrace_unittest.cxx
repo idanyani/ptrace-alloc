@@ -57,11 +57,11 @@ class PtraceTest : public ::testing::Test {
         const Syscall read_syscall("read");
 
         EXPECT_CALL(mock_event_callbacks,
-                    onSyscall(p_ptrace->getChildPid(),
+                    onSyscall(_,
                               read_syscall,
                               SyscallDirection::ENTRY));
         EXPECT_CALL(mock_event_callbacks,
-                    onSyscall(p_ptrace->getChildPid(),
+                    onSyscall(_,
                               read_syscall,
                               SyscallDirection::EXIT));
 
@@ -154,20 +154,20 @@ TEST_F(PtraceTest, BasicTest) {
     const Syscall close_syscall("close");
 
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(p_ptrace->getChildPid(),
+                onSyscall(_,
                           close_syscall,
                           SyscallDirection::ENTRY));
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(p_ptrace->getChildPid(),
+                onSyscall(_,
                           close_syscall,
                           SyscallDirection::EXIT));
 
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(p_ptrace->getChildPid(),
+                onSyscall(_,
                           Syscall("exit_group"),
                           SyscallDirection::ENTRY));
 
-    EXPECT_CALL(mock_event_callbacks, onExit(p_ptrace->getChildPid(), 0));
+    EXPECT_CALL(mock_event_callbacks, onExit(_, 0));
 
     p_ptrace->startTracing();
 }
@@ -176,25 +176,26 @@ TEST_F(PtraceTest, MmapHijackTest) {
     sendCommand(1);
 
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(p_ptrace->getChildPid(),
+                onSyscall(_,
                           Syscall("mmap"),
                           SyscallDirection::ENTRY))
-            .WillOnce(InvokeWithoutArgs([&]() {
-                p_ptrace->pokeSyscall(Syscall("getpid"));
+            .WillOnce(Invoke([=](pid_t pid, Syscall, SyscallDirection) {
+                p_ptrace->pokeSyscall(pid /*TODO: the interface should be clearer*/,
+                                      Syscall("getpid"));
             }));
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(p_ptrace->getChildPid(),
+                onSyscall(_,
                           Syscall("getpid"),
                           SyscallDirection::EXIT));
 
     receivePid();
 
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(p_ptrace->getChildPid(),
+                onSyscall(_,
                           Syscall("exit_group"),
                           SyscallDirection::ENTRY));
 
-    EXPECT_CALL(mock_event_callbacks, onExit(p_ptrace->getChildPid(), 0));
+    EXPECT_CALL(mock_event_callbacks, onExit(_, 0));
 
     p_ptrace->startTracing();
 }
