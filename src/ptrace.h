@@ -27,6 +27,13 @@ class Ptrace {
 
         virtual void onSyscallEnter(pid_t, Syscall) {}
         virtual void onSyscallExit (pid_t, Syscall) {}
+
+#if 0 //TODO:
+    protected:
+        Syscall getSyscall();
+        void setSyscall(Syscall);
+        void setReturnValue();
+#endif
     };
 
     Ptrace(const std::string& executable, char* args[], EventCallbacks&);
