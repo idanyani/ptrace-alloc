@@ -130,9 +130,9 @@ void Ptrace::startTracing() {
                         logger_ << " (fork/clone)" << Logger::endl;
                         break;
                     case PTRACE_EVENT_EXEC:
-                        throw std::logic_error("case is not implemented"); // TODO
+                        throw std::logic_error("case is not implemented"); // TODO: add a callback
                     default:
-                        break; // TODO
+                        break;
                 }
 
             } else {
@@ -165,7 +165,7 @@ void Ptrace::startTracing() {
 void Ptrace::pokeSyscall(pid_t pid, Syscall syscall_to_run) {
     auto it = process_list_.find(TracedProcess(pid));// TODO is there a way not to create TracedProcess?
     if (it == process_list_.end()) {
-        // TODO: throw? ignore?
+        throw std::out_of_range("pid: " + std::to_string(pid));
     }
 
     assert(it->isInsideKernel());
