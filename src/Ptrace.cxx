@@ -68,7 +68,8 @@ void Ptrace::startTracing() {
                                    &status,
                                    __WALL); // wait for all children (including 'clone'd)
         if (waited_pid < 0) {
-            assert(errno == ECHILD); // TODO: there are more cases (EINTER for example)
+            if (errno == EINTR) continue;
+            assert(errno == ECHILD);
             break;
         } // else, one of the descendants changed state
 
