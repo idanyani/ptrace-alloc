@@ -23,6 +23,8 @@ class MockEventCallbacks : public Ptrace::EventCallbacks {
 
     MOCK_METHOD2(onExit        , void(pid_t, int retval));
     MOCK_METHOD3(onSyscall     , void(pid_t, const Syscall&, SyscallDirection direction));
+    MOCK_METHOD2(onTerminate   , void(pid_t, int signal_num));
+    MOCK_METHOD2(onSignal      , void(pid_t, int signal_num));
 
     void onSyscallEnter(pid_t pid, Syscall syscall) override {
         ASSERT_FALSE(inside_kernel);
@@ -148,7 +150,7 @@ class PtraceTest : public ::testing::Test {
 };
 
 
-TEST_F(PtraceTest, BasicTest) {
+TEST_F(PtraceTest, Syscall) {
     sendCommand(0);
 
     const Syscall close_syscall("close");
@@ -172,7 +174,7 @@ TEST_F(PtraceTest, BasicTest) {
     p_ptrace->startTracing();
 }
 
-TEST_F(PtraceTest, MmapHijackTest) {
+TEST_F(PtraceTest, MmapHijack) {
     sendCommand(1);
 
     EXPECT_CALL(mock_event_callbacks,
@@ -196,6 +198,24 @@ TEST_F(PtraceTest, MmapHijackTest) {
                           SyscallDirection::ENTRY));
 
     EXPECT_CALL(mock_event_callbacks, onExit(_, 0));
+
+    p_ptrace->startTracing();
+}
+
+TEST_F(PtraceTest, Terminate) {
+    sendCommand(2);
+
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscall(_,
+                          Syscall("kill"),
+                          SyscallDirection::ENTRY));
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscall(_,
+                          Syscall("kill"),
+                          SyscallDirection::EXIT));
+
+    EXPECT_CALL(mock_event_callbacks, onSignal(_, SIGTERM));
+    EXPECT_CALL(mock_event_callbacks, onTerminate);
 
     p_ptrace->startTracing();
 }

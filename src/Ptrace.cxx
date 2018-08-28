@@ -101,7 +101,7 @@ void Ptrace::startTracing() {
             int signal_num = WTERMSIG(status);
             char* signal_name = strsignal(signal_num);
 
-            logger_ << "terminated by " << signal_name << " (#" << signal_num << ")"
+            logger_ << "terminated by \"" << signal_name << "\" (#" << signal_num << ")"
                     << Logger::endl;
             process_list_.erase(insert_result.first);
             event_callbacks_.onTerminate(waited_pid, signal_num);
@@ -157,7 +157,7 @@ void Ptrace::startTracing() {
         } else {
             char* signal_name = strsignal(signal_num);
 
-            logger_ << "stopped by " << signal_name << " (#" << signal_num << ")" << Logger::endl;
+            logger_ << "signalled with \"" << signal_name << "\" (#" << signal_num << ")" << Logger::endl;
             event_callbacks_.onSignal(waited_pid, signal_num);
 
             signal_to_inject = signal_num;

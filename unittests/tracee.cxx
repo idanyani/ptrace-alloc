@@ -26,6 +26,10 @@ int test1() {
     return sendPid(pid);
 }
 
+int test2() {
+    return kill(getpid(), SIGTERM);
+}
+
 int main() {
 
     if (kill(getpid(), 0) != 0)  // this for caching main's start
@@ -43,6 +47,8 @@ int main() {
             return test0();
         case 1:
             return test1();
+        case 2:
+            return test2();
         default:
             return -1;
     }
