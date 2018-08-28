@@ -55,13 +55,8 @@ Ptrace::Ptrace(const std::string& executable, char* args[], EventCallbacks& even
 
 Ptrace::~Ptrace() {
     for (auto process : process_list_) {
-        kill(process.pid_, SIGKILL);
+        kill(process.pid(), SIGKILL);
     }
-}
-
-static inline
-void toggle(bool& var) {
-    var = !var;
 }
 
 void Ptrace::startTracing() {
@@ -111,12 +106,12 @@ void Ptrace::startTracing() {
                                                                               waited_pid,
                                                                               REG_OFFSET(orig_rax)))));
 
-                toggle(process_iter->in_syscall_);
+                process_iter->toggleKernelUser();
 
                 logger_ << "syscalled with \"" << syscall << "\"; "
-                        << (process_iter->in_syscall_ ? "Enter" : "Exit") << Logger::endl;
+                        << (process_iter->isInsideKernel() ? "Enter" : "Exit") << Logger::endl;
 
-                if (process_iter->in_syscall_) {
+                if (process_iter->isInsideKernel()) {
                     event_callbacks_.onSyscallEnter(waited_pid, syscall);
                 } else {
                     event_callbacks_.onSyscallExit(waited_pid, syscall);
@@ -134,7 +129,7 @@ void Ptrace::startTracing() {
                         logger_ << " (fork/clone)" << Logger::endl;
                         break;
                     case PTRACE_EVENT_EXEC:
-                        throw std::logic_error("case not yet implemented"); // TODO
+                        throw std::logic_error("case is not implemented"); // TODO
                     default:
                         break; // TODO
                 }
@@ -172,7 +167,7 @@ void Ptrace::pokeSyscall(pid_t pid, Syscall syscall_to_run) {
         // TODO: throw? ignore?
     }
 
-    assert(it->in_syscall_);
+    assert(it->isInsideKernel());
     SAFE_SYSCALL(ptrace(PTRACE_POKEUSER, pid,
                         offsetof(struct user, regs.orig_rax), syscall_to_run.getSyscallNum()));
 }
