@@ -31,15 +31,14 @@ int test2() {
 }
 
 int main() {
-
-    if (kill(getpid(), 0) != 0)  // this for caching main's start
-        return -1;
-
     close(4);
     close(5);
 
     char command;
     if (read(command_fd, &command, sizeof(command)) < 1)
+        return -1;
+
+    if (kill(getpid(), 0) != 0)  // this for caching test start
         return -1;
 
     switch (command) {

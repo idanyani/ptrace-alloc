@@ -11,15 +11,20 @@ using ::testing::_;
 using ::testing::AtLeast;
 using ::testing::InSequence;
 using ::testing::Invoke;
-using ::testing::InvokeWithoutArgs;
 
 enum class SyscallDirection {
     ENTRY, EXIT
 };
 
+// Common syscall objects to be created once
+static const Syscall kill_syscall ("kill");
+static const Syscall close_syscall("close");
+static const Syscall write_syscall("write");
+
+
 class MockEventCallbacks : public Ptrace::EventCallbacks {
   public:
-    MockEventCallbacks() : inside_kernel(false) {}
+    MockEventCallbacks() : test_started(false), inside_kernel(false) {}
 
     MOCK_METHOD2(onExit        , void(pid_t, int retval));
     MOCK_METHOD3(onSyscall     , void(pid_t, const Syscall&, SyscallDirection direction));
@@ -29,16 +34,27 @@ class MockEventCallbacks : public Ptrace::EventCallbacks {
     void onSyscallEnter(pid_t pid, Syscall syscall) override {
         ASSERT_FALSE(inside_kernel);
         inside_kernel = true;
-        onSyscall(pid, syscall, SyscallDirection::ENTRY);
+
+        if (test_started) {
+            onSyscall(pid, syscall, SyscallDirection::ENTRY);
+        }
     }
 
     void onSyscallExit(pid_t pid, Syscall syscall) override {
         ASSERT_TRUE(inside_kernel);
         inside_kernel = false;
-        onSyscall(pid, syscall, SyscallDirection::EXIT);
+
+        if (test_started) {
+            onSyscall(pid, syscall, SyscallDirection::EXIT);
+        }
+        if (syscall == kill_syscall) {
+            test_started = true;
+        }
     }
 
   private:
+    bool test_started;  // Used to ignore all the syscalls before the first "kill" in the tracee.
+                        // Make the tests much easier to use and easy to express expectations
     bool inside_kernel;
 };
 
@@ -56,35 +72,12 @@ class PtraceTest : public ::testing::Test {
     }
 
     void sendCommand(char command) {
-        const Syscall read_syscall("read");
-
-        EXPECT_CALL(mock_event_callbacks,
-                    onSyscall(_,
-                              read_syscall,
-                              SyscallDirection::ENTRY));
-        EXPECT_CALL(mock_event_callbacks,
-                    onSyscall(_,
-                              read_syscall,
-                              SyscallDirection::EXIT));
-
         ASSERT_EQ(write(command_pipe[1], &command, sizeof(command)), (ssize_t)sizeof(command));
     }
 
-    void receivePid() {
-        const Syscall write_syscall("write");
-
-        EXPECT_CALL(mock_event_callbacks,
-                    onSyscall(_,
-                              write_syscall,
-                              SyscallDirection::ENTRY));
-        EXPECT_CALL(mock_event_callbacks,
-                    onSyscall(_, write_syscall, SyscallDirection::EXIT))
-                .WillOnce(Invoke([=](pid_t pid, Syscall, SyscallDirection) {
-                    pid_t received;
-                    ASSERT_EQ(read(data_pipe[0], &received, sizeof(received)),
-                              (ssize_t) sizeof(received));
-                    ASSERT_EQ(pid, received);
-                }));
+    template<typename Data>
+    void readData(Data& data) {
+        ASSERT_EQ(read(data_pipe[0], &data, sizeof(data)), (ssize_t) sizeof(data));
     }
 
     std::unique_ptr<Ptrace> p_ptrace;
@@ -108,42 +101,13 @@ class PtraceTest : public ::testing::Test {
     }
 
     void start_tracee(const char* tracee_path) {
-        char* args[] = {const_cast<char*>(tracee_path), nullptr};
-
-        EXPECT_CALL(mock_event_callbacks,
-                    onSyscall(_, _, _)).Times(AtLeast(10));
-
-        const Syscall kill_syscall("kill");
-
-        EXPECT_CALL(mock_event_callbacks,
-                    onSyscall(_,
-                              kill_syscall,
-                              SyscallDirection::ENTRY));
-        EXPECT_CALL(mock_event_callbacks,
-                    onSyscall(_,
-                              kill_syscall,
-                              SyscallDirection::EXIT));
-
-        const Syscall close_syscall("close");
-        for (auto i = 0; i < 2; ++i) {
-            EXPECT_CALL(mock_event_callbacks,
-                        onSyscall(_,
-                                  close_syscall,
-                                  SyscallDirection::ENTRY));
-            EXPECT_CALL(mock_event_callbacks,
-                        onSyscall(_,
-                                  close_syscall,
-                                  SyscallDirection::EXIT));
-        }
-
         openPipes();
 
+        char* args[] = {const_cast<char*>(tracee_path), nullptr};
         p_ptrace.reset(new Ptrace(args[0], args, mock_event_callbacks));
 
         closeUnusedPipeEnds();
     }
-
-    InSequence in_sequence; // for making the constraints ordered
 
     int command_pipe[2];
     int data_pipe   [2];
@@ -151,23 +115,16 @@ class PtraceTest : public ::testing::Test {
 
 
 TEST_F(PtraceTest, Syscall) {
+    InSequence in_sequence;
     sendCommand(0);
 
-    const Syscall close_syscall("close");
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscall(_, close_syscall, SyscallDirection::ENTRY));
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscall(_, close_syscall, SyscallDirection::EXIT));
 
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_,
-                          close_syscall,
-                          SyscallDirection::ENTRY));
-    EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_,
-                          close_syscall,
-                          SyscallDirection::EXIT));
-
-    EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_,
-                          Syscall("exit_group"),
-                          SyscallDirection::ENTRY));
+                onSyscall(_, Syscall("exit_group"), SyscallDirection::ENTRY));
 
     EXPECT_CALL(mock_event_callbacks, onExit(_, 0));
 
@@ -175,44 +132,45 @@ TEST_F(PtraceTest, Syscall) {
 }
 
 TEST_F(PtraceTest, MmapHijack) {
+    InSequence in_sequence;
     sendCommand(1);
 
+    pid_t tracee_pid;
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_,
-                          Syscall("mmap"),
-                          SyscallDirection::ENTRY))
-            .WillOnce(Invoke([=](pid_t pid, Syscall, SyscallDirection) {
+                onSyscall(_, Syscall("mmap"), SyscallDirection::ENTRY))
+            .WillOnce(Invoke([&](pid_t pid, Syscall, SyscallDirection) {
                 p_ptrace->pokeSyscall(pid /*TODO: the interface should be clearer*/,
                                       Syscall("getpid"));
+                tracee_pid = pid;
             }));
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_,
-                          Syscall("getpid"),
-                          SyscallDirection::EXIT));
-
-    receivePid();
+                onSyscall(_, Syscall("getpid"), SyscallDirection::EXIT));
 
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_,
-                          Syscall("exit_group"),
-                          SyscallDirection::ENTRY));
+                onSyscall(_, write_syscall, SyscallDirection::ENTRY));
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscall(_, write_syscall, SyscallDirection::EXIT));
+
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscall(_, Syscall("exit_group"), SyscallDirection::ENTRY));
 
     EXPECT_CALL(mock_event_callbacks, onExit(_, 0));
 
     p_ptrace->startTracing();
+
+    pid_t received;
+    readData(received);
+    ASSERT_EQ(tracee_pid, received);
 }
 
 TEST_F(PtraceTest, Terminate) {
+    InSequence in_sequence;
     sendCommand(2);
 
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_,
-                          Syscall("kill"),
-                          SyscallDirection::ENTRY));
+                onSyscall(_, Syscall("kill"), SyscallDirection::ENTRY));
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_,
-                          Syscall("kill"),
-                          SyscallDirection::EXIT));
+                onSyscall(_, Syscall("kill"), SyscallDirection::EXIT));
 
     EXPECT_CALL(mock_event_callbacks, onSignal(_, SIGTERM));
     EXPECT_CALL(mock_event_callbacks, onTerminate);
