@@ -30,6 +30,27 @@ int test2() {
     return kill(getpid(), SIGTERM);
 }
 
+int test3() {
+    const auto child_pid = fork();
+    if (child_pid == -1) { // error
+        return -1;
+    }
+    if (child_pid == 0) { // child
+        const auto grandchild_pid = fork();
+        if (grandchild_pid == -1) { // error
+            return -1;
+        }
+        if (grandchild_pid == 0) { // grandchild
+            return close(0);
+        } else { // child
+            return sendPid(grandchild_pid);
+        }
+
+    } else { // parent
+        return sendPid(child_pid);
+    }
+}
+
 int main() {
     close(4);
     close(5);
@@ -48,6 +69,8 @@ int main() {
             return test1();
         case 2:
             return test2();
+        case 3:
+            return test3();
         default:
             return -1;
     }

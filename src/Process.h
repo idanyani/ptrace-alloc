@@ -7,8 +7,7 @@
 class TracedProcess {
   public:
     explicit
-    TracedProcess(pid_t pid) : pid_(pid), flags{.in_syscall_=false,
-                                                .initialized_=false} {}
+    TracedProcess(pid_t pid) : pid_(pid), in_syscall_(false) {}
 
     bool operator<(const TracedProcess& rhs) const {
         return pid_ < rhs.pid_;
@@ -16,11 +15,7 @@ class TracedProcess {
 
     // TODO: private:
     pid_t pid_;
-
-    mutable struct {//TODO: bitmap?
-        bool in_syscall_;
-        bool initialized_;
-    } flags;
+    mutable bool in_syscall_;
 };
 
 #endif //PTRACE_ALLOC_PROCESS_H

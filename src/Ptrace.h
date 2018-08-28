@@ -21,6 +21,8 @@ class Ptrace {
       public:
         virtual ~EventCallbacks() = default;
 
+        virtual void onStart    (pid_t) {} // TODO: inform if this is a forked or cloned child?
+                                           // TODO: inform the parend pid?
         virtual void onExit     (pid_t, int retval)     {}
         virtual void onTerminate(pid_t, int signal_num) {}
         virtual void onSignal   (pid_t, int signal_num) {}

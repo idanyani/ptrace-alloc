@@ -3,14 +3,18 @@
 #include <wait.h>
 #include <cassert>
 #include <memory>
+#include <unordered_map>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
 
 using ::testing::_;
+using ::testing::AnyOf;
 using ::testing::AtLeast;
+using ::testing::Contains;
 using ::testing::InSequence;
 using ::testing::Invoke;
+using ::testing::Not;
 
 enum class SyscallDirection {
     ENTRY, EXIT
@@ -24,16 +28,18 @@ static const Syscall write_syscall("write");
 
 class MockEventCallbacks : public Ptrace::EventCallbacks {
   public:
-    MockEventCallbacks() : test_started(false), inside_kernel(false) {}
+    MockEventCallbacks() : test_started(false) {}
 
+    MOCK_METHOD1(onStart       , void(pid_t));
     MOCK_METHOD2(onExit        , void(pid_t, int retval));
     MOCK_METHOD3(onSyscall     , void(pid_t, const Syscall&, SyscallDirection direction));
     MOCK_METHOD2(onTerminate   , void(pid_t, int signal_num));
     MOCK_METHOD2(onSignal      , void(pid_t, int signal_num));
 
     void onSyscallEnter(pid_t pid, Syscall syscall) override {
-        ASSERT_FALSE(inside_kernel);
-        inside_kernel = true;
+        auto& in_syscall = is_inside_kernel[pid];
+        ASSERT_FALSE(in_syscall);
+        in_syscall = true;
 
         if (test_started) {
             onSyscall(pid, syscall, SyscallDirection::ENTRY);
@@ -41,8 +47,9 @@ class MockEventCallbacks : public Ptrace::EventCallbacks {
     }
 
     void onSyscallExit(pid_t pid, Syscall syscall) override {
-        ASSERT_TRUE(inside_kernel);
-        inside_kernel = false;
+        auto& in_syscall = is_inside_kernel[pid];
+        ASSERT_TRUE(in_syscall);
+        in_syscall = false;
 
         if (test_started) {
             onSyscall(pid, syscall, SyscallDirection::EXIT);
@@ -55,7 +62,7 @@ class MockEventCallbacks : public Ptrace::EventCallbacks {
   private:
     bool test_started;  // Used to ignore all the syscalls before the first "kill" in the tracee.
                         // Make the tests much easier to use and easy to express expectations
-    bool inside_kernel;
+    std::unordered_map<pid_t, bool> is_inside_kernel;
 };
 
 class PtraceTest : public ::testing::Test {
@@ -119,6 +126,9 @@ TEST_F(PtraceTest, Syscall) {
     sendCommand(0);
 
     EXPECT_CALL(mock_event_callbacks,
+                onStart);
+
+    EXPECT_CALL(mock_event_callbacks,
                 onSyscall(_, close_syscall, SyscallDirection::ENTRY));
     EXPECT_CALL(mock_event_callbacks,
                 onSyscall(_, close_syscall, SyscallDirection::EXIT));
@@ -134,6 +144,9 @@ TEST_F(PtraceTest, Syscall) {
 TEST_F(PtraceTest, MmapHijack) {
     InSequence in_sequence;
     sendCommand(1);
+
+    EXPECT_CALL(mock_event_callbacks,
+                onStart);
 
     pid_t tracee_pid;
     EXPECT_CALL(mock_event_callbacks,
@@ -168,6 +181,9 @@ TEST_F(PtraceTest, Terminate) {
     sendCommand(2);
 
     EXPECT_CALL(mock_event_callbacks,
+                onStart);
+
+    EXPECT_CALL(mock_event_callbacks,
                 onSyscall(_, Syscall("kill"), SyscallDirection::ENTRY));
     EXPECT_CALL(mock_event_callbacks,
                 onSyscall(_, Syscall("kill"), SyscallDirection::EXIT));
@@ -176,4 +192,64 @@ TEST_F(PtraceTest, Terminate) {
     EXPECT_CALL(mock_event_callbacks, onTerminate);
 
     p_ptrace->startTracing();
+}
+
+TEST_F(PtraceTest, Fork) {
+    sendCommand(3);
+
+    std::vector<pid_t> children;
+    ON_CALL(mock_event_callbacks,
+            onStart)
+            .WillByDefault(Invoke([&](pid_t pid) { children.push_back(pid); }));
+
+    EXPECT_CALL(mock_event_callbacks,
+                onStart)
+                .Times(3);
+
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscall(_, AnyOf(Syscall("fork"), Syscall("clone")), SyscallDirection::ENTRY))
+                .Times(2);
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscall(_, AnyOf(Syscall("fork"), Syscall("clone")), SyscallDirection::EXIT))
+                .Times(2);
+
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscall(_, write_syscall, SyscallDirection::ENTRY))
+                .Times(2);
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscall(_, write_syscall, SyscallDirection::EXIT))
+                .Times(2);
+
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscall(_, Syscall("exit_group"), SyscallDirection::ENTRY))
+                .Times(3);
+
+    // these calls might not be called on some platforms (kernel/libc/pthread)
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscall(_, Syscall("set_robust_list"), SyscallDirection::ENTRY))
+                .Times(2);
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscall(_, Syscall("set_robust_list"), SyscallDirection::EXIT))
+                .Times(2);
+
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscall(_, close_syscall, SyscallDirection::ENTRY));
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscall(_, close_syscall, SyscallDirection::EXIT));
+
+    EXPECT_CALL(mock_event_callbacks, onExit(_, 0))
+                .Times(3);
+
+    p_ptrace->startTracing();
+
+    EXPECT_EQ(3, children.size());
+
+    std::array<pid_t, 2> sent_pids;
+    for (auto& pid : sent_pids) {
+        readData(pid);
+        EXPECT_THAT(children, Contains(pid));
+    }
+
+    EXPECT_THAT(sent_pids, Not(Contains(children.front()))); // no one sent the first child's pid
+
 }
