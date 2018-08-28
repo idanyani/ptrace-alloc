@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <cstring>
 
-#include "ptrace.h"
+#include "Ptrace.h"
 
 using std::cout;
 using std::endl;
@@ -19,22 +19,8 @@ int main(int argc, char* argv[]) {
 
     // TODO: we can get the args via argv
     char* args[] = {const_cast<char*>("date"), nullptr};
-    Ptrace ptrace("./child_mmap", args);
-
-    while (true) {
-        Ptrace::SyscallDirection direction;
-
-        try {
-            direction = ptrace.runUntilSyscallGate().second;
-
-        } catch (std::exception& e) {
-            cout << e.what() << endl;
-            break;
-        }
-
-        cout << ptrace.getChildPid() << " " << (direction == Ptrace::SyscallDirection::ENTRY ?
-                                           "enters kernel" : "exits kernel") << endl;
-    }
+    Ptrace::EventCallbacks event_callbacks;
+    Ptrace ptrace("./child_mmap", args, event_callbacks);
 
     return 0;
 }

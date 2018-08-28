@@ -1,4 +1,4 @@
-#include "ptrace.h"
+#include "Ptrace.h"
 
 #include <wait.h>
 #include <cassert>

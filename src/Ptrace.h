@@ -6,9 +6,9 @@
 #include <sys/types.h>
 #include <set>
 
-#include "syscall.h"
-#include "logger.h"
-#include "process.h"
+#include "Syscall.h"
+#include "Logger.h"
+#include "Process.h"
 
 
 class Ptrace {

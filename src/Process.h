@@ -15,7 +15,7 @@ class TracedProcess {
     }
 
     // TODO: private:
-    pid_t   pid_;
+    pid_t pid_;
 
     mutable struct {//TODO: bitmap?
         bool in_syscall_;

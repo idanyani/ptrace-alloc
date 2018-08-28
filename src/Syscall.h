@@ -24,6 +24,7 @@ class Syscall {
 
   private:
     int num_;
+
     void validate() const;
 };
 

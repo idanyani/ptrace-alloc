@@ -1,4 +1,4 @@
-#include "ptrace.h"
+#include "Ptrace.h"
 
 #include <sys/user.h> // struct user
 #include <sys/ptrace.h>
@@ -57,7 +57,7 @@ Ptrace::Ptrace(const std::string& executable, char* args[], EventCallbacks& even
 }
 
 Ptrace::~Ptrace() {
-    for(auto process : process_list_) {
+    for (auto process : process_list_) {
         kill(process.pid_, SIGKILL);
     }
 }
@@ -71,7 +71,7 @@ void Ptrace::startTracing() {
 
     while (true) {
 
-        int status;
+        int   status;
         pid_t waited_pid = waitpid(-1,      // wait for any child
                                    &status,
                                    __WALL); // wait for all children (including 'clone'd)
@@ -101,14 +101,15 @@ void Ptrace::startTracing() {
             int signal_num = WTERMSIG(status);
             char* signal_name = strsignal(signal_num);
 
-            logger_ << "terminated by " << signal_name << " (#" << signal_num << ")" << Logger::endl;
+            logger_ << "terminated by " << signal_name << " (#" << signal_num << ")"
+                    << Logger::endl;
             process_list_.erase(insert_result.first);
             event_callbacks_.onTerminate(waited_pid, signal_num);
             continue;
         }
 
         assert(WIFSTOPPED(status));
-        int signal_num = WSTOPSIG(status);
+        int signal_num       = WSTOPSIG(status);
         int signal_to_inject = 0;
 
         if (!tracee.flags.initialized_) {
@@ -168,7 +169,7 @@ void Ptrace::startTracing() {
 
 void Ptrace::pokeSyscall(pid_t pid, Syscall syscall_to_run) {
     auto it = process_list_.find(TracedProcess(pid));// TODO is there a way not to create TracedProcess?
-    if (it == process_list_.end()){
+    if (it == process_list_.end()) {
         // TODO: throw? ignore?
     }
 

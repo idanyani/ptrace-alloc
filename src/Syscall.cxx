@@ -1,14 +1,14 @@
 
 #include <stdexcept>
-#include "syscall.h"
+#include "Syscall.h"
 
-#include "syscallents.h"
+#include "Syscallents.h"
 
 
-Syscall::Syscall(const std::string& syscall_name){
+Syscall::Syscall(const std::string& syscall_name) {
 
-    for(int syscall_idx = 0; syscall_idx < MAX_SYSCALL_NUM; syscall_idx++){
-        if(syscalls[syscall_idx] == syscall_name){
+    for (int syscall_idx = 0; syscall_idx < MAX_SYSCALL_NUM; syscall_idx++) {
+        if (syscalls[syscall_idx] == syscall_name) {
             num_ = syscall_idx;
             return;
         }

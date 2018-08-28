@@ -5,7 +5,7 @@
 
 class Logger {
   public:
-    enum class Verbosity { ON, OFF}; // can be extended (low-high etc.)
+    enum class Verbosity { ON, OFF }; // can be extended (low-high etc.)
 
     explicit Logger(std::ostream& out = std::cout) : out_(out), verbosity_(Verbosity::OFF) {}
 
