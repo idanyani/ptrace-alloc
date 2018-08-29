@@ -16,33 +16,62 @@ using ::testing::InSequence;
 using ::testing::Invoke;
 using ::testing::Not;
 
-enum class SyscallDirection {
-    ENTRY, EXIT
-};
+using ::testing::Matcher;
+using ::testing::MatcherInterface;
+using ::testing::MatchResultListener;
 
 // Common syscall objects to be created once
 static const Syscall kill_syscall ("kill");
 static const Syscall close_syscall("close");
 static const Syscall write_syscall("write");
 
+/// a matcher to be able to match onSyscall*() with a specific syscall
+template <typename SyscallAction>
+class SyscallEqMatcher : public MatcherInterface<SyscallAction&> {
+  public:
+    explicit
+    SyscallEqMatcher(Syscall syscall) : syscall_(syscall) {}
+
+    void DescribeTo(::std::ostream* os) const override {
+        *os << "syscall is: " << syscall_;
+    }
+
+    void DescribeNegationTo(::std::ostream* os) const override {
+        *os << "syscall isn't: " << syscall_;
+    }
+
+    bool MatchAndExplain(SyscallAction& action,
+                         MatchResultListener*) const override {
+        return action.getSyscall() == syscall_;
+    }
+
+  private:
+    const Syscall syscall_;
+};
+
+template <typename SyscallAction>
+inline Matcher<SyscallAction&> SyscallEq(const Syscall& syscall) {
+    return MakeMatcher(new SyscallEqMatcher<SyscallAction>(syscall));
+}
 
 class MockEventCallbacks : public Ptrace::EventCallbacks {
   public:
     MockEventCallbacks() : test_started(false) {}
 
-    MOCK_METHOD1(onStart       , void(pid_t));
-    MOCK_METHOD2(onExit        , void(pid_t, int retval));
-    MOCK_METHOD3(onSyscall     , void(pid_t, const Syscall&, SyscallDirection direction));
-    MOCK_METHOD2(onTerminate   , void(pid_t, int signal_num));
-    MOCK_METHOD2(onSignal      , void(pid_t, int signal_num));
+    MOCK_METHOD1(onStart        , void(pid_t));
+    MOCK_METHOD2(onExit         , void(pid_t, int retval));
+    MOCK_METHOD2(onSyscallEnterT, void(pid_t, Ptrace::SyscallEnterAction&));
+    MOCK_METHOD2(onSyscallExitT , void(pid_t, Syscall));
+    MOCK_METHOD2(onTerminate    , void(pid_t, int signal_num));
+    MOCK_METHOD2(onSignal       , void(pid_t, int signal_num));
 
-    void onSyscallEnter(pid_t pid, Syscall syscall) override {
+    void onSyscallEnter(pid_t pid, Ptrace::SyscallEnterAction& action) override {
         auto& in_syscall = is_inside_kernel[pid];
         ASSERT_FALSE(in_syscall);
         in_syscall = true;
 
         if (test_started) {
-            onSyscall(pid, syscall, SyscallDirection::ENTRY);
+            onSyscallEnterT(pid, action);
         }
     }
 
@@ -52,7 +81,7 @@ class MockEventCallbacks : public Ptrace::EventCallbacks {
         in_syscall = false;
 
         if (test_started) {
-            onSyscall(pid, syscall, SyscallDirection::EXIT);
+            onSyscallExitT(pid, syscall);
         }
         if (syscall == kill_syscall) {
             test_started = true;
@@ -129,12 +158,12 @@ TEST_F(PtraceTest, Syscall) {
                 onStart);
 
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, close_syscall, SyscallDirection::ENTRY));
+                onSyscallEnterT(_, SyscallEq<Ptrace::SyscallEnterAction>(close_syscall)));
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, close_syscall, SyscallDirection::EXIT));
+                onSyscallExitT(_, close_syscall));
 
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, Syscall("exit_group"), SyscallDirection::ENTRY));
+                onSyscallEnterT(_, SyscallEq<Ptrace::SyscallEnterAction>(Syscall("exit_group"))));
 
     EXPECT_CALL(mock_event_callbacks, onExit(_, 0));
 
@@ -150,22 +179,21 @@ TEST_F(PtraceTest, MmapHijack) {
 
     pid_t tracee_pid;
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, Syscall("mmap"), SyscallDirection::ENTRY))
-            .WillOnce(Invoke([&](pid_t pid, Syscall, SyscallDirection) {
-                p_ptrace->pokeSyscall(pid /*TODO: the interface should be clearer*/,
-                                      Syscall("getpid"));
-                tracee_pid = pid;
-            }));
+                onSyscallEnterT(_, SyscallEq<Ptrace::SyscallEnterAction>(Syscall("mmap"))))
+                .WillOnce(Invoke([&](pid_t pid, Ptrace::SyscallEnterAction& action) {
+                    action.setSyscall(Syscall("getpid"));
+                    tracee_pid = pid;
+                }));
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, Syscall("getpid"), SyscallDirection::EXIT));
+                onSyscallExitT(_, Syscall("getpid")));
 
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, write_syscall, SyscallDirection::ENTRY));
+                onSyscallEnterT(_, SyscallEq<Ptrace::SyscallEnterAction>(write_syscall)));
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, write_syscall, SyscallDirection::EXIT));
+                onSyscallExitT(_, write_syscall));
 
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, Syscall("exit_group"), SyscallDirection::ENTRY));
+                onSyscallEnterT(_, SyscallEq<Ptrace::SyscallEnterAction>(Syscall("exit_group"))));
 
     EXPECT_CALL(mock_event_callbacks, onExit(_, 0));
 
@@ -184,9 +212,9 @@ TEST_F(PtraceTest, Terminate) {
                 onStart);
 
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, Syscall("kill"), SyscallDirection::ENTRY));
+                onSyscallEnterT(_, SyscallEq<Ptrace::SyscallEnterAction>(Syscall("kill"))));
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, Syscall("kill"), SyscallDirection::EXIT));
+                onSyscallExitT(_, Syscall("kill")));
 
     EXPECT_CALL(mock_event_callbacks, onSignal(_, SIGTERM));
     EXPECT_CALL(mock_event_callbacks, onTerminate);
@@ -207,35 +235,37 @@ TEST_F(PtraceTest, Fork) {
                 .Times(3);
 
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, AnyOf(Syscall("fork"), Syscall("clone")), SyscallDirection::ENTRY))
+                onSyscallEnterT(_,
+                                AnyOf(SyscallEq<Ptrace::SyscallEnterAction>(Syscall("fork")),
+                                      SyscallEq<Ptrace::SyscallEnterAction>(Syscall("clone")))))
                 .Times(2);
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, AnyOf(Syscall("fork"), Syscall("clone")), SyscallDirection::EXIT))
-                .Times(2);
-
-    EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, write_syscall, SyscallDirection::ENTRY))
-                .Times(2);
-    EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, write_syscall, SyscallDirection::EXIT))
+                onSyscallExitT(_, AnyOf(Syscall("fork"), Syscall("clone"))))
                 .Times(2);
 
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, Syscall("exit_group"), SyscallDirection::ENTRY))
+                onSyscallEnterT(_, SyscallEq<Ptrace::SyscallEnterAction>(write_syscall)))
+                .Times(2);
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscallExitT(_, write_syscall))
+                .Times(2);
+
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscallEnterT(_, SyscallEq<Ptrace::SyscallEnterAction>(Syscall("exit_group"))))
                 .Times(3);
 
     // these calls might not be called on some platforms (kernel/libc/pthread)
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, Syscall("set_robust_list"), SyscallDirection::ENTRY))
+                onSyscallEnterT(_, SyscallEq<Ptrace::SyscallEnterAction>(Syscall("set_robust_list"))))
                 .Times(2);
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, Syscall("set_robust_list"), SyscallDirection::EXIT))
+                onSyscallExitT(_, Syscall("set_robust_list")))
                 .Times(2);
 
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, close_syscall, SyscallDirection::ENTRY));
+                onSyscallEnterT(_, SyscallEq<Ptrace::SyscallEnterAction>(close_syscall)));
     EXPECT_CALL(mock_event_callbacks,
-                onSyscall(_, close_syscall, SyscallDirection::EXIT));
+                onSyscallExitT(_, close_syscall));
 
     EXPECT_CALL(mock_event_callbacks, onExit(_, 0))
                 .Times(3);

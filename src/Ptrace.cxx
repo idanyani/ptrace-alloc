@@ -103,19 +103,18 @@ void Ptrace::startTracing() {
             if (signal_num & PTRACE_O_TRACESYSGOOD_MASK) {
                 assert(signal_num == (SIGTRAP | PTRACE_O_TRACESYSGOOD_MASK));
 
-                Syscall syscall(static_cast<int>(SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER,
-                                                                              waited_pid,
-                                                                              REG_OFFSET(orig_rax)))));
-
                 process_iter->toggleKernelUser();
 
-                logger_ << "syscalled with \"" << syscall << "\"; "
-                        << (process_iter->isInsideKernel() ? "Enter" : "Exit") << Logger::endl;
+                logger_ << "syscalled"
+                        // << " with \"" << getSyscall(*process_iter)
+                        << "\"; " << (process_iter->isInsideKernel() ? "Enter" : "Exit") << Logger::endl;
+
 
                 if (process_iter->isInsideKernel()) {
-                    event_callbacks_.onSyscallEnter(waited_pid, syscall);
+                    SyscallEnterAction action(*this, *process_iter);
+                    event_callbacks_.onSyscallEnter(waited_pid, action);
                 } else {
-                    event_callbacks_.onSyscallExit(waited_pid, syscall);
+                    event_callbacks_.onSyscallExit(waited_pid, getSyscall(*process_iter));//TODO
                 }
 
             } else if (signal_num == SIGTRAP) {
@@ -162,13 +161,24 @@ void Ptrace::startTracing() {
     }
 }
 
-void Ptrace::pokeSyscall(pid_t pid, Syscall syscall_to_run) {
-    auto it = process_list_.find(TracedProcess(pid));// TODO is there a way not to create TracedProcess?
-    if (it == process_list_.end()) {
-        throw std::out_of_range("pid: " + std::to_string(pid));
-    }
+void Ptrace::setSyscall(const TracedProcess& tracee, Syscall syscall_to_run) {
+    assert(process_list_.find(tracee) != process_list_.end());
+    assert(tracee.isInsideKernel());
+    SAFE_SYSCALL(ptrace(PTRACE_POKEUSER, tracee.pid(),
+                        REG_OFFSET(orig_rax), syscall_to_run.getSyscallNum()));
+}
 
-    assert(it->isInsideKernel());
-    SAFE_SYSCALL(ptrace(PTRACE_POKEUSER, pid,
-                        offsetof(struct user, regs.orig_rax), syscall_to_run.getSyscallNum()));
+Syscall Ptrace::getSyscall(const TracedProcess& tracee) {
+    assert(process_list_.find(tracee) != process_list_.end());
+    return Syscall(static_cast<int>(SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER,
+                                                                 tracee.pid(),
+                                                                 REG_OFFSET(orig_rax)))));
+}
+
+Syscall Ptrace::SyscallAction::getSyscall() const {
+    return ptrace_.getSyscall(tracee_);
+}
+
+void Ptrace::SyscallEnterAction::setSyscall(Syscall syscall) {
+    ptrace_.setSyscall(tracee_, syscall);
 }
