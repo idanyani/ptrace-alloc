@@ -1,6 +1,6 @@
 
 ### Unittests ###
-add_executable(unittests ptrace_unittest.cxx)
+add_executable(unittests ptrace_unittest.cxx PtraceTest.cxx)
 add_executable(tracee tracee.cxx)
 add_dependencies(unittests tracee)
 
