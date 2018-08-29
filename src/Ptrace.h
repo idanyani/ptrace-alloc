@@ -35,6 +35,13 @@ class Ptrace {
         void setSyscall(Syscall);
     };
 
+    class SyscallExitAction : public SyscallAction {
+        friend class Ptrace;
+        using SyscallAction::SyscallAction;
+      public:
+        void setReturnValue(long);
+    };
+
     /// Base class. derive and implement the event functions you are interested in.
     /// If for some reason "virtual" making a performance impact, we can "easily"
     /// swap this with static polymorphism (templates).
@@ -49,11 +56,8 @@ class Ptrace {
         virtual void onSignal   (pid_t, int signal_num) {}
 
         virtual void onSyscallEnter(pid_t, SyscallEnterAction&) {}
-        virtual void onSyscallExit (pid_t, Syscall) {}
+        virtual void onSyscallExit (pid_t, SyscallExitAction&) {}
 
-#if 0 //TODO:
-        void setReturnValue();
-#endif
     };
 
     Ptrace(const std::string& executable, char* args[], EventCallbacks&);
@@ -67,8 +71,10 @@ class Ptrace {
     Ptrace& operator=(const Ptrace&) = delete;
 
   private:
-    void    setSyscall(const TracedProcess&, Syscall);
-    Syscall getSyscall(const TracedProcess&);
+    void    setSyscall      (const TracedProcess&, Syscall);
+    Syscall getSyscall      (const TracedProcess&);
+    void    setReturnValue  (const TracedProcess&, long);
+
     using ProcessList = std::set<TracedProcess>; //TODO: replace with hash-table?
 
     EventCallbacks& event_callbacks_;

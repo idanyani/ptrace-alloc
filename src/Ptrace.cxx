@@ -114,7 +114,8 @@ void Ptrace::startTracing() {
                     SyscallEnterAction action(*this, *process_iter);
                     event_callbacks_.onSyscallEnter(waited_pid, action);
                 } else {
-                    event_callbacks_.onSyscallExit(waited_pid, getSyscall(*process_iter));//TODO
+                    SyscallExitAction action(*this, *process_iter);
+                    event_callbacks_.onSyscallExit(waited_pid, action);
                 }
 
             } else if (signal_num == SIGTRAP) {
@@ -168,6 +169,12 @@ void Ptrace::setSyscall(const TracedProcess& tracee, Syscall syscall_to_run) {
                         REG_OFFSET(orig_rax), syscall_to_run.getSyscallNum()));
 }
 
+void Ptrace::setReturnValue(const TracedProcess& tracee, long return_value) {
+    assert(process_list_.find(tracee) != process_list_.end());
+    assert(!tracee.isInsideKernel());
+    SAFE_SYSCALL(ptrace(PTRACE_POKEUSER, tracee.pid(), REG_OFFSET(rax), return_value));
+}
+
 Syscall Ptrace::getSyscall(const TracedProcess& tracee) {
     assert(process_list_.find(tracee) != process_list_.end());
     return Syscall(static_cast<int>(SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER,
@@ -181,4 +188,8 @@ Syscall Ptrace::SyscallAction::getSyscall() const {
 
 void Ptrace::SyscallEnterAction::setSyscall(Syscall syscall) {
     ptrace_.setSyscall(tracee_, syscall);
+}
+
+void Ptrace::SyscallExitAction::setReturnValue(long return_value) {
+    ptrace_.setReturnValue(tracee_, return_value);
 }
