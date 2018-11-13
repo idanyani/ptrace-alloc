@@ -1,0 +1,7 @@
+
+add_executable(ptrace_example ptrace_example.cxx)
+add_executable(ptrace_example_tracee ptrace_example_tracee.cxx)
+
+add_dependencies(ptrace_example ptrace_example_tracee)
+
+target_link_libraries(ptrace_example tracer)
