@@ -4,10 +4,12 @@ project(ptrace_alloc)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -pthread")
 
-include_directories(src)
+include_directories(src include)
 add_subdirectory(src)
 add_subdirectory(unittests)
+
 add_subdirectory(examples)
+#add_subdirectory(include)
 
 ### GTEST ###
 set(GTEST_SRC_DIR googletest)

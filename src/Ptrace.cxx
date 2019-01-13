@@ -9,6 +9,8 @@
 #include <cstddef> // offsetof
 #include <cstring> // strsignal
 #include <system_error> // std::system_error
+#include <stdlib.h> // putenv
+
 
 
 using std::string;
@@ -42,12 +44,19 @@ T handleSyscallReturnValue(T syscall_return_value, unsigned code_line) {
 
 Ptrace::Ptrace(const std::string& executable, char* args[], EventCallbacks& event_handler)
         : event_callbacks_(event_handler) {
+    // TODO: add path to tracee library as an argument
+    char env_var[] = "LD_PRELOAD=/home/mac/CLionProjects/ptrace-alloc/cmake-build-debug/unittests/libtracee_l.so";
+    putenv(env_var);
+
+    // set up user signal handlers
+    //setUserSignals(); // TODO
 
     pid_t tracee_pid = SAFE_SYSCALL(fork());
 
     if (tracee_pid == 0) { // child process
 
         SAFE_SYSCALL(ptrace(PTRACE_TRACEME, 0, NULL, NULL));
+        // TODO: consider using execve instead of putenv
         SAFE_SYSCALL(execv(executable.c_str(), args));
         assert(false); // can't get here, SAFE_SYSCALL will throw on error
     }
@@ -109,6 +118,8 @@ void Ptrace::startTracing() {
                         // << " with \"" << getSyscall(*process_iter)
                         << "\"; " << (process_iter->isInsideKernel() ? "Enter" : "Exit") << Logger::endl;
 
+                if(getSyscall(*process_iter) == Syscall(62))
+                    kill(waited_pid, SIGUSR2);
 
                 if (process_iter->isInsideKernel()) {
                     SyscallEnterAction action(*this, *process_iter);
@@ -192,4 +203,8 @@ void Ptrace::SyscallEnterAction::setSyscall(Syscall syscall) {
 
 void Ptrace::SyscallExitAction::setReturnValue(long return_value) {
     ptrace_.setReturnValue(tracee_, return_value);
+}
+
+void Ptrace::setLoggerVerbosity(Logger::Verbosity verbosity){
+    logger_ << verbosity;
 }

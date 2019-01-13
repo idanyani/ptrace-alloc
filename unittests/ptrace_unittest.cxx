@@ -1,5 +1,6 @@
 #include "Ptrace.h"
 #include "PtraceTest.h"
+#include "tracee_lib_event_callbacks.h"
 
 #include <sys/types.h>
 
@@ -170,4 +171,13 @@ TEST_F(PtraceTest, Fork) {
 
     EXPECT_THAT(sent_pids, Not(Contains(children.front()))); // no one sent the first child's pid
 
+}
+
+TEST(PtraceLibTest, BasicTest){
+    char* args[] = {const_cast<char*>("./tracee"), nullptr};
+    TraceeLibEventCallbacks tracee_lib_event_callbacks;
+    Ptrace ptrace(args[0], args, tracee_lib_event_callbacks);
+
+    //ptrace.setLoggerVerbosity(Logger::Verbosity::ON);
+    ptrace.startTracing();
 }

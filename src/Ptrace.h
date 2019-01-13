@@ -9,6 +9,7 @@
 #include "Syscall.h"
 #include "Logger.h"
 #include "Process.h"
+#include "setUserSignalHandlers.h"
 
 
 class Ptrace {
@@ -69,6 +70,7 @@ class Ptrace {
     // non copyable
     Ptrace(const Ptrace&) = delete;
     Ptrace& operator=(const Ptrace&) = delete;
+    void setLoggerVerbosity(Logger::Verbosity verbosity);
 
   private:
     void    setSyscall      (const TracedProcess&, Syscall);
