@@ -9,7 +9,6 @@
 #include "Syscall.h"
 #include "Logger.h"
 #include "Process.h"
-#include "setUserSignalHandlers.h"
 
 
 class Ptrace {
