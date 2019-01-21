@@ -10,7 +10,9 @@
 #include <cstring> // strsignal
 #include <system_error> // std::system_error
 #include <stdlib.h> // putenv
+//#include "../TraceeLib/tr"acee_lib.h"
 
+extern "C" void setUserSignals();
 
 
 using std::string;
@@ -45,11 +47,11 @@ T handleSyscallReturnValue(T syscall_return_value, unsigned code_line) {
 Ptrace::Ptrace(const std::string& executable, char* args[], EventCallbacks& event_handler)
         : event_callbacks_(event_handler) {
     // TODO: add path to tracee library as an argument
-    char env_var[] = "LD_PRELOAD=/home/mac/CLionProjects/ptrace-alloc/cmake-build-debug/unittests/libtracee_l.so";
+    char env_var[] = "LD_PRELOAD=/home/mac/CLionProjects/ptrace-alloc/cmake-build-debug/TraceeLib/libtracee_l.so";
     putenv(env_var);
 
     // set up user signal handlers
-    //setUserSignals(); // TODO
+    setUserSignals(); 
 
     pid_t tracee_pid = SAFE_SYSCALL(fork());
 

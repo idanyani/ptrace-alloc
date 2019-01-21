@@ -8,10 +8,10 @@
 #include <sys/stat.h> // mkfifo
 #include <string.h> // strcpy, strcat
 #include <errno.h>
-//#include "tracee_lib.h"
+#include "tracee_lib.h"
 
 
-void setUserSignals();
+//void setUserSignals();
 void allocate_handler(int address);
 void create_fifo(int address);
 
