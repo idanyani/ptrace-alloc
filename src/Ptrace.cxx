@@ -10,10 +10,7 @@
 #include <cstring> // strsignal
 #include <system_error> // std::system_error
 #include <stdlib.h> // putenv
-//#include "../TraceeLib/tr"acee_lib.h"
-
-extern "C" void setUserSignals();
-
+#include "../TraceeLib/tracee_lib.h"
 
 using std::string;
 
@@ -51,7 +48,7 @@ Ptrace::Ptrace(const std::string& executable, char* args[], EventCallbacks& even
     putenv(env_var);
 
     // set up user signal handlers
-    setUserSignals(); 
+    setUserSignals();
 
     pid_t tracee_pid = SAFE_SYSCALL(fork());
 
