@@ -122,14 +122,14 @@ void Ptrace::startTracing() {
                 assert(signal_num == (SIGTRAP | PTRACE_O_TRACESYSGOOD_MASK));
 
                 waited_process.toggleKernelUser();
+                //process_iter->second.toggleKernelUser();
 
                 logger_ << "syscalled"
                         // << " with \"" << getSyscall(*process_iter)
-                        << "\"; " << (process_iter->second.isInsideKernel() ? "Enter" : "Exit") << Logger::endl;
+                        << "\"; " << (waited_process.isInsideKernel() ? "Enter" : "Exit") << Logger::endl;
 
                 if(!waited_process.isStarted() && getSyscall(waited_process) == Syscall(62)) {
                     kill(waited_pid, SIGUSR2); // send SIGUSER2 to force tracee to create fifo with his pid
-                    //setTraceeAsStarted(*process_iter);
                     waited_process.setStarted(true);
                 }
                 if (waited_process.isInsideKernel()) {

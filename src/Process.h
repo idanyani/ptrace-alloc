@@ -21,7 +21,7 @@ class TracedProcess {
         return in_kernel_;
     }
 
-    void toggleKernelUser() const {
+    void toggleKernelUser() {
         in_kernel_ = !in_kernel_;
     }
 
@@ -35,7 +35,7 @@ class TracedProcess {
 
   private:
     pid_t pid_;
-    mutable bool in_kernel_;
+    bool in_kernel_;
     bool process_started;
 };
 

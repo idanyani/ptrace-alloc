@@ -19,7 +19,7 @@ class TraceeLibEventCallbacks : public Ptrace::EventCallbacks {
     void onSignal   (pid_t pid, int signal_num);
 
     void onSyscallEnter(pid_t pid, Ptrace::SyscallEnterAction& action);
-    void onSyscallExit (pid_t pid, Ptrace::SyscallEnterAction& action);
+    void onSyscallExit (pid_t pid, Ptrace::SyscallExitAction& action);
 };
 
 

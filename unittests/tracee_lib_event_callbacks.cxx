@@ -19,6 +19,6 @@ void TraceeLibEventCallbacks::onSignal   (pid_t pid, int signal_num){
 void TraceeLibEventCallbacks::onSyscallEnter(pid_t pid, Ptrace::SyscallEnterAction& action){
     printf("TraceeLibEventCallbacks onSyscallEnter %d\n", getpid());
 }
-void TraceeLibEventCallbacks::onSyscallExit (pid_t pid, Ptrace::SyscallEnterAction& action){
+void TraceeLibEventCallbacks::onSyscallExit (pid_t pid, Ptrace::SyscallExitAction& action){
     printf("TraceeLibEventCallbacks onSyscallExit %d\n", getpid());
 }
