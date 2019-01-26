@@ -4,16 +4,30 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <signal.h> // sigaction, struct sigaction
-#include <sys/types.h> // mkfifo
-#include <sys/stat.h> // mkfifo
+#include <sys/types.h> // mkfifo, opnen
+#include <sys/stat.h> // mkfifo, open
 #include <string.h> // strcpy, strcat
-#include <errno.h>
+#include <errno.h> // errno
+#include <fcntl.h> // open
+
 #include "tracee_lib.h"
 
-
-//void setUserSignals();
 void allocate_handler(int address);
 void create_fifo(int address);
+
+int traceeHandleSyscallReturnValue(int syscall_return_value, unsigned int code_line) {
+    if (syscall_return_value < 0) {
+        printf("system call failed at line %d with error: %s\n", code_line, strerror(errno));
+    }
+    return syscall_return_value;
+}
+
+#define TRACEE_SAFE_SYSCALL(syscall) \
+({int _ret_val = traceeHandleSyscallReturnValue(syscall, __LINE__); _ret_val;})
+
+
+char fifo_path[80];
+int fifo_fd;
 
 void setUserSignals(){
     struct sigaction allocate_action, create_fifo_action;
@@ -25,27 +39,22 @@ void setUserSignals(){
     sigemptyset (&create_fifo_action.sa_mask);
     create_fifo_action.sa_flags = 0;
 
-    sigaction (SIGUSR1, &allocate_action, NULL);
-    sigaction (SIGUSR2, &create_fifo_action, NULL);
+    TRACEE_SAFE_SYSCALL(sigaction (SIGUSR1, &allocate_action, NULL));
+    TRACEE_SAFE_SYSCALL(sigaction (SIGUSR2, &create_fifo_action, NULL));
 }
 
 // TODO: replace hard-coded path with generic one
 // TODO: research tmpfile()/tempnnam() for creating temporal place for fifo
-int make_fifo_for_process(){
-    // /home/mac/CLionProjects/ptrace-alloc/fifo/
-    int res;
-    char fifo_path[80];
+void make_fifo_for_process(){
     char pid_str[20];
     sprintf(pid_str, "%d", getpid());
 
     strcpy(fifo_path, "/tmp/fifo/");
     strcat(fifo_path, pid_str);
 
-    // TODO: check permissions at
-    res = mkfifo(fifo_path, S_IRUSR | S_IWOTH);
-    if(res < 0)
-        printf("make_fifo_for_process failed: %s\n", strerror(errno));
-    return res;
+    TRACEE_SAFE_SYSCALL(mkfifo(fifo_path, 0666));
+    fifo_fd = TRACEE_SAFE_SYSCALL(open(fifo_path, O_RDWR | O_NONBLOCK));
+    printf("%d id fifo_id=%d\n", getpid(), fifo_fd);
 }
 
 /*
@@ -54,15 +63,24 @@ int make_fifo_for_process(){
  * creates fifo identified with new process's id if wasn't created already
 */
 __attribute__((constructor)) void tracee_begin(){
-
     printf("tracee_begin: %d\n", getpid());
+
     setUserSignals();
     kill(getpid(), 0);
 
 }
 
-// TODO: add destructor to close FIFO and remove it
+__attribute__((destructor)) void tracee_end(){
+    printf("tracee_end: %d fifo_fd: %d\n", getpid(), fifo_fd);
+    int fifo_exists = TRACEE_SAFE_SYSCALL(access(fifo_path, F_OK));
 
+    if(fifo_exists == 0) {
+        struct stat fifo_stat;
+        TRACEE_SAFE_SYSCALL(fstat(fifo_fd, &fifo_stat));
+        TRACEE_SAFE_SYSCALL(close(fifo_fd));
+        TRACEE_SAFE_SYSCALL(unlink(fifo_path));
+    }
+}
 /*
  * siguser1_handler
  * reads from fifo data sent by tracer
@@ -82,8 +100,8 @@ void allocate_handler(int address){
  * */
 
 void create_fifo(int address){
-    int fifo_create_res = make_fifo_for_process();
-    printf("create_fifo: mmake_fifo_for_process res  %d\n", fifo_create_res);
+    printf("create_fifo\n");
+    make_fifo_for_process();
 }
 
 //

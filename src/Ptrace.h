@@ -71,16 +71,19 @@ class Ptrace {
     Ptrace& operator=(const Ptrace&) = delete;
     void setLoggerVerbosity(Logger::Verbosity verbosity);
 
+
   private:
     void    setSyscall      (const TracedProcess&, Syscall);
     Syscall getSyscall      (const TracedProcess&);
     void    setReturnValue  (const TracedProcess&, long);
+    void setTraceeAsStarted(const TracedProcess& traced_process);
 
     using ProcessList = std::set<TracedProcess>; //TODO: replace with hash-table?
 
     EventCallbacks& event_callbacks_;
     ProcessList     process_list_;
     Logger          logger_;
+
 };
 
 

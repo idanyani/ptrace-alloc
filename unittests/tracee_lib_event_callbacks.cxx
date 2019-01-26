@@ -7,18 +7,18 @@
 TraceeLibEventCallbacks::~TraceeLibEventCallbacks() = default;
 
 void TraceeLibEventCallbacks::onStart    (pid_t pid){
-    printf("TraceeLibEventCallbacks onStart\n");
+    printf("TraceeLibEventCallbacks onStart %d\n", getpid());
 }
 void TraceeLibEventCallbacks::onExit     (pid_t pid, int retval){
-    printf("TraceeLibEventCallbacks onExit\n");
+    printf("TraceeLibEventCallbacks onExit %d\n", getpid());
 }
 void TraceeLibEventCallbacks::onSignal   (pid_t pid, int signal_num){
-    printf("TraceeLibEventCallbacks onSignal\n");
+    printf("TraceeLibEventCallbacks onSignal %d\n", getpid());
 }
 
 void TraceeLibEventCallbacks::onSyscallEnter(pid_t pid, Ptrace::SyscallEnterAction& action){
-    printf("TraceeLibEventCallbacks onSyscallEnter\n");
+    printf("TraceeLibEventCallbacks onSyscallEnter %d\n", getpid());
 }
 void TraceeLibEventCallbacks::onSyscallExit (pid_t pid, Ptrace::SyscallEnterAction& action){
-    printf("TraceeLibEventCallbacks onSyscallExit\n");
+    printf("TraceeLibEventCallbacks onSyscallExit %d\n", getpid());
 }

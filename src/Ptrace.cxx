@@ -11,6 +11,8 @@
 #include <system_error> // std::system_error
 #include <stdlib.h> // putenv
 #include "../TraceeLib/tracee_lib.h"
+#include <sys/stat.h> //mkdir
+#include <sys/types.h> //mkdir
 
 using std::string;
 
@@ -47,9 +49,15 @@ Ptrace::Ptrace(const std::string& executable, char* args[], EventCallbacks& even
     char env_var[] = "LD_PRELOAD=/home/mac/CLionProjects/ptrace-alloc/cmake-build-debug/TraceeLib/libtracee_l.so";
     putenv(env_var);
 
-    // set up user signal handlers
-    setUserSignals();
+    setUserSignals();  // set up user signal handlers for tracer
+    //make_fifo_for_process(); // create fifo for tracer process (only for compatability with tracee lib)
 
+    try {
+        SAFE_SYSCALL(mkdir("/tmp/fifo", 0777)); // create directory for tracee fifo's
+    } catch(const std::system_error& e){
+        if(e.code().value() != EEXIST) // if /tmp/fifo already exists, resume the execution as normal
+            throw e;
+    }
     pid_t tracee_pid = SAFE_SYSCALL(fork());
 
     if (tracee_pid == 0) { // child process
@@ -62,6 +70,7 @@ Ptrace::Ptrace(const std::string& executable, char* args[], EventCallbacks& even
 }
 
 Ptrace::~Ptrace() {
+    // TODO: remove fifo and fifo directory
     for (auto process : process_list_) {
         kill(process.pid(), SIGKILL);
     }
@@ -117,9 +126,10 @@ void Ptrace::startTracing() {
                         // << " with \"" << getSyscall(*process_iter)
                         << "\"; " << (process_iter->isInsideKernel() ? "Enter" : "Exit") << Logger::endl;
 
-                if(getSyscall(*process_iter) == Syscall(62))
-                    kill(waited_pid, SIGUSR2);
-
+                if(!process_iter->isStarted() && getSyscall(*process_iter) == Syscall(62)) {
+                    kill(waited_pid, SIGUSR2); // send SIGUSER2 to force tracee to create fifo with his pid
+                    setTraceeAsStarted(*process_iter);
+                }
                 if (process_iter->isInsideKernel()) {
                     SyscallEnterAction action(*this, *process_iter);
                     event_callbacks_.onSyscallEnter(waited_pid, action);
@@ -206,4 +216,15 @@ void Ptrace::SyscallExitAction::setReturnValue(long return_value) {
 
 void Ptrace::setLoggerVerbosity(Logger::Verbosity verbosity){
     logger_ << verbosity;
+}
+
+void Ptrace::setTraceeAsStarted(const TracedProcess& traced_process){
+    //auto traced_process = process_list_.find(TracedProcess(tracee_pid));
+    assert(process_list_.find(traced_process) != process_list_.end());
+
+    TracedProcess new_traced_process = traced_process;
+    new_traced_process.setStarted(true);
+
+    process_list_.erase(traced_process);
+    process_list_.emplace(new_traced_process);
 }
