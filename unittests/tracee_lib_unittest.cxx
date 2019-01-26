@@ -16,10 +16,9 @@ using ::testing::Invoke;
 using ::testing::Not;
 
 TEST(PtraceLibTest, BasicTest){
-    char* args[] = {const_cast<char*>("./tracee"), nullptr};
+    char* args[] = {const_cast<char*>("./tracee_lib_tracee"), nullptr};
     TraceeLibEventCallbacks tracee_lib_event_callbacks;
     Ptrace ptrace(args[0], args, tracee_lib_event_callbacks);
 
-    //ptrace.setLoggerVerbosity(Logger::Verbosity::ON);
     ptrace.startTracing();
 }

@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <sys/types.h>
 #include <set>
+//#include <bits/unordered_map.h>
+#include <unordered_map>
 
 #include "Syscall.h"
 #include "Logger.h"
@@ -78,7 +80,7 @@ class Ptrace {
     void    setReturnValue  (const TracedProcess&, long);
     void setTraceeAsStarted(const TracedProcess& traced_process);
 
-    using ProcessList = std::set<TracedProcess>; //TODO: replace with hash-table?
+    using ProcessList = std::unordered_map<pid_t, TracedProcess>; //TODO: replace with hash-table?
 
     EventCallbacks& event_callbacks_;
     ProcessList     process_list_;

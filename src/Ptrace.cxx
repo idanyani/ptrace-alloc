@@ -72,7 +72,7 @@ Ptrace::Ptrace(const std::string& executable, char* args[], EventCallbacks& even
 Ptrace::~Ptrace() {
     // TODO: remove fifo and fifo directory
     for (auto process : process_list_) {
-        kill(process.pid(), SIGKILL);
+        kill(process.first, SIGKILL);
     }
 }
 
@@ -93,7 +93,7 @@ void Ptrace::startTracing() {
         logger_ << "Process #" << waited_pid << " ";
         int signal_to_inject = 0;
 
-        auto process_iter = process_list_.find(TracedProcess(waited_pid)); // TODO is there a way not to create TracedProcess? (search by pid)
+        auto process_iter = process_list_.find(waited_pid); // TODO is there a way not to create TracedProcess? (search by pid)
         if (process_iter != process_list_.end()) {
             if (WIFEXITED(status)) {
                 int retval = WEXITSTATUS(status);
@@ -118,23 +118,25 @@ void Ptrace::startTracing() {
             int signal_num = WSTOPSIG(status);
 
             if (signal_num & PTRACE_O_TRACESYSGOOD_MASK) {
+                TracedProcess& waited_process = process_iter->second;
                 assert(signal_num == (SIGTRAP | PTRACE_O_TRACESYSGOOD_MASK));
 
-                process_iter->toggleKernelUser();
+                waited_process.toggleKernelUser();
 
                 logger_ << "syscalled"
                         // << " with \"" << getSyscall(*process_iter)
-                        << "\"; " << (process_iter->isInsideKernel() ? "Enter" : "Exit") << Logger::endl;
+                        << "\"; " << (process_iter->second.isInsideKernel() ? "Enter" : "Exit") << Logger::endl;
 
-                if(!process_iter->isStarted() && getSyscall(*process_iter) == Syscall(62)) {
+                if(!waited_process.isStarted() && getSyscall(waited_process) == Syscall(62)) {
                     kill(waited_pid, SIGUSR2); // send SIGUSER2 to force tracee to create fifo with his pid
-                    setTraceeAsStarted(*process_iter);
+                    //setTraceeAsStarted(*process_iter);
+                    waited_process.setStarted(true);
                 }
-                if (process_iter->isInsideKernel()) {
-                    SyscallEnterAction action(*this, *process_iter);
+                if (waited_process.isInsideKernel()) {
+                    SyscallEnterAction action(*this, waited_process);
                     event_callbacks_.onSyscallEnter(waited_pid, action);
                 } else {
-                    SyscallExitAction action(*this, *process_iter);
+                    SyscallExitAction action(*this, waited_process);
                     event_callbacks_.onSyscallExit(waited_pid, action);
                 }
 
@@ -167,7 +169,7 @@ void Ptrace::startTracing() {
 
         } else {
             // newborn process
-            process_list_.emplace(waited_pid);
+            process_list_.emplace(waited_pid, TracedProcess(waited_pid));
 
             logger_ << "is first traced" << Logger::endl;
             event_callbacks_.onStart(waited_pid);
@@ -183,20 +185,20 @@ void Ptrace::startTracing() {
 }
 
 void Ptrace::setSyscall(const TracedProcess& tracee, Syscall syscall_to_run) {
-    assert(process_list_.find(tracee) != process_list_.end());
+    assert(process_list_.find(tracee.pid()) != process_list_.end());
     assert(tracee.isInsideKernel());
     SAFE_SYSCALL(ptrace(PTRACE_POKEUSER, tracee.pid(),
                         REG_OFFSET(orig_rax), syscall_to_run.getSyscallNum()));
 }
 
 void Ptrace::setReturnValue(const TracedProcess& tracee, long return_value) {
-    assert(process_list_.find(tracee) != process_list_.end());
+    assert(process_list_.find(tracee.pid()) != process_list_.end());
     assert(!tracee.isInsideKernel());
     SAFE_SYSCALL(ptrace(PTRACE_POKEUSER, tracee.pid(), REG_OFFSET(rax), return_value));
 }
 
 Syscall Ptrace::getSyscall(const TracedProcess& tracee) {
-    assert(process_list_.find(tracee) != process_list_.end());
+    assert(process_list_.find(tracee.pid()) != process_list_.end());
     return Syscall(static_cast<int>(SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER,
                                                                  tracee.pid(),
                                                                  REG_OFFSET(orig_rax)))));
@@ -218,13 +220,3 @@ void Ptrace::setLoggerVerbosity(Logger::Verbosity verbosity){
     logger_ << verbosity;
 }
 
-void Ptrace::setTraceeAsStarted(const TracedProcess& traced_process){
-    //auto traced_process = process_list_.find(TracedProcess(tracee_pid));
-    assert(process_list_.find(traced_process) != process_list_.end());
-
-    TracedProcess new_traced_process = traced_process;
-    new_traced_process.setStarted(true);
-
-    process_list_.erase(traced_process);
-    process_list_.emplace(new_traced_process);
-}
