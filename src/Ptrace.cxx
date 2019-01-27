@@ -16,27 +16,6 @@
 
 using std::string;
 
-template<typename T>
-T handleSyscallReturnValue(T syscall_return_value, unsigned code_line) {
-    if (syscall_return_value < 0) {
-        throw std::system_error(errno,
-                                std::system_category(),
-                                string("Failed on line:") + std::to_string(code_line));
-    }
-    return syscall_return_value;
-}
-
-#define SAFE_SYSCALL(syscall) \
-    handleSyscallReturnValue(syscall, __LINE__)
-
-#define SAFE_SYSCALL_BY_ERRNO(syscall)                      \
-    ({                                                      \
-        errno = 0;                                          \
-        const auto ret = syscall;                           \
-        handleSyscallReturnValue(-errno, __LINE__);         \
-        ret;                                                \
-    }) // https://gcc.gnu.org/onlinedocs/gcc/Statement-Exprs.html
-
 
 #define REG_OFFSET(reg_name_)       offsetof(struct user, regs.reg_name_)
 
@@ -128,9 +107,9 @@ void Ptrace::startTracing() {
                         // << " with \"" << getSyscall(*process_iter)
                         << "\"; " << (waited_process.isInsideKernel() ? "Enter" : "Exit") << Logger::endl;
 
-                if(!waited_process.isStarted() && getSyscall(waited_process) == Syscall(62)) {
+                if(!waited_process.userSignalHandlersAreSet() && getSyscall(waited_process) == Syscall(62)) {
                     kill(waited_pid, SIGUSR2); // send SIGUSER2 to force tracee to create fifo with his pid
-                    waited_process.setStarted(true);
+                    waited_process.setuserSignalHandlersSet(true);
                 }
                 if (waited_process.isInsideKernel()) {
                     SyscallEnterAction action(*this, waited_process);
@@ -169,7 +148,10 @@ void Ptrace::startTracing() {
 
         } else {
             // newborn process
-            process_list_.emplace(waited_pid, TracedProcess(waited_pid));
+            TracedProcess newborn_process(waited_pid);
+            newborn_process.setuserSignalHandlersSet(true); // Newborn process has it's signal user handlers set since it inherited them from the parent.
+
+            process_list_.emplace(waited_pid, newborn_process);
 
             logger_ << "is first traced" << Logger::endl;
             event_callbacks_.onStart(waited_pid);
@@ -178,6 +160,7 @@ void Ptrace::startTracing() {
             auto flags = PTRACE_O_TRACESYSGOOD |
                          PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK | PTRACE_O_TRACECLONE;
             SAFE_SYSCALL(ptrace(PTRACE_SETOPTIONS, waited_pid, NULL, flags));
+            // TODO:  set flag
         }
 
         SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, signal_to_inject));

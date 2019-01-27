@@ -12,6 +12,26 @@
 #include "Logger.h"
 #include "Process.h"
 
+template<typename T>
+T handleSyscallReturnValue(T syscall_return_value, unsigned code_line) {
+    if (syscall_return_value < 0) {
+        throw std::system_error(errno,
+                                std::system_category(),
+                                std::string("Failed on line:") + std::to_string(code_line));
+    }
+    return syscall_return_value;
+}
+
+#define SAFE_SYSCALL(syscall) \
+    handleSyscallReturnValue(syscall, __LINE__)
+
+#define SAFE_SYSCALL_BY_ERRNO(syscall)                      \
+    ({                                                      \
+        errno = 0;                                          \
+        const auto ret = syscall;                           \
+        handleSyscallReturnValue(-errno, __LINE__);         \
+        ret;                                                \
+    }) // https://gcc.gnu.org/onlinedocs/gcc/Statement-Exprs.html
 
 class Ptrace {
   public:
