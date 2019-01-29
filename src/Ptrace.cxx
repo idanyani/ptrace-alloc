@@ -28,7 +28,7 @@ Ptrace::Ptrace(const std::string& executable, char* args[], EventCallbacks& even
     char env_var[] = "LD_PRELOAD=/home/mac/CLionProjects/ptrace-alloc/cmake-build-debug/TraceeLib/libtracee_l.so";
     putenv(env_var);
 
-    setUserSignals();  // set up user signal handlers for tracer
+    //setUserSignals();  // set up user signal handlers for tracer
     //make_fifo_for_process(); // create fifo for tracer process (only for compatability with tracee lib)
 
     try {

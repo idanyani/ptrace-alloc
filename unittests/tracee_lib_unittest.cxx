@@ -8,14 +8,8 @@
 
 #include <sys/types.h>
 
-using ::testing::_;
-using ::testing::AnyOf;
-using ::testing::Contains;
-using ::testing::InSequence;
-using ::testing::Invoke;
-using ::testing::Not;
 
-TEST(PtraceLibTest, BasicTest){
+int main (){
     char* args[] = {const_cast<char*>("./tracee_lib_tracee"), nullptr};
     TraceeLibEventCallbacks tracee_lib_event_callbacks;
     Ptrace ptrace(args[0], args, tracee_lib_event_callbacks);

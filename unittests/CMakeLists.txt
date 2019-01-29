@@ -20,15 +20,16 @@ add_test(unittests unittests)
 # Temp
 add_executable(tracee_test test.cpp PtraceTest.cxx tracee_lib_event_callbacks.cxx)
 add_dependencies(tracee_test tracee)
-target_link_libraries(tracee_test tracee_l)
+#target_link_libraries(tracee_test tracee_l)
 target_link_libraries(tracee_test tracer gtest gtest_main gmock)
 
 # Tarcee lib test
 add_executable(tracee_lib_test tracee_lib_unittest.cxx PtraceTest.cxx tracee_lib_event_callbacks.cxx)
 add_executable(tracee_lib_tracee tracee_lib_test_tracee_programm.cxx)
+target_link_libraries(tracee_lib_tracee tracee_l)
+
 add_dependencies(tracee_lib_test tracee_lib_tracee)
 
-target_link_libraries(tracee_lib_test tracee_l)
 target_link_libraries(tracee_lib_test tracer gtest gtest_main gmock)
 # add_test(tracee_lib_test tracee_lib_test)
 
