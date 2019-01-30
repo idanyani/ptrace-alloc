@@ -14,11 +14,13 @@ Syscall::Syscall(const std::string& syscall_name) {
         }
     }
 
-    throw std::out_of_range("Invalid syscall name!");
+    throw std::out_of_range("Invalid syscall name: " + syscall_name);
 }
 
 void Syscall::validate() const {
-    if (num_ < 0 || num_ >= MAX_SYSCALL_NUM) throw std::out_of_range("syscall number out of range");
+    if (num_ < 0 || num_ >= MAX_SYSCALL_NUM)
+        throw std::out_of_range(
+                "syscall number out of range: " + std::to_string(num_));
 }
 
 std::string Syscall::toString() const {

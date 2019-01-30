@@ -5,7 +5,7 @@
 
 class Syscall {
   public:
-    explicit Syscall(int num = -1) : num_(num) {}
+    explicit Syscall(int num) : num_(num) {}
 
     explicit Syscall(const std::string& syscall_name);
 
