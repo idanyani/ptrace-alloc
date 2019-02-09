@@ -7,7 +7,7 @@
 class TracedProcess {
   public:
     explicit
-    TracedProcess(pid_t pid) : pid_(pid), in_kernel_(false), user_signal_handlers_set_(false) {}
+    TracedProcess(pid_t pid) : pid_(pid), in_kernel_(false), returning_from_signal_(false) {}
 
     bool operator<(const TracedProcess& rhs) const {
         return pid_ < rhs.pid_;
@@ -25,18 +25,18 @@ class TracedProcess {
         in_kernel_ = !in_kernel_;
     }
 
-    bool userSignalHandlersAreSet() const {
-        return user_signal_handlers_set_;
+    bool returningFromSignal() const {
+        return returning_from_signal_;
     }
 
-    void setuserSignalHandlersSet(bool started) {
-        user_signal_handlers_set_ = started;
+    void setReturningFromSignal(bool is_returning_from_signal) {
+        returning_from_signal_ = is_returning_from_signal;
     }
 
   private:
     pid_t pid_;
     bool in_kernel_;
-    bool user_signal_handlers_set_;
+    bool returning_from_signal_;
 };
 
 #endif //PTRACE_ALLOC_PROCESS_H

@@ -25,11 +25,11 @@ using std::string;
 Ptrace::Ptrace(const std::string& executable, char* args[], EventCallbacks& event_handler)
         : event_callbacks_(event_handler) {
     // TODO: add path to tracee library as an argument
+    // FIXME: do we need to do LD_PRELOAD trick after execve for the tracee?
     char env_var[] = "LD_PRELOAD=/home/mac/CLionProjects/ptrace-alloc/cmake-build-debug/TraceeLib/libtracee_l.so";
     putenv(env_var);
 
-    //setUserSignals();  // set up user signal handlers for tracer
-    //make_fifo_for_process(); // create fifo for tracer process (only for compatability with tracee lib)
+    setUserSignals();  // set up user signal handlers for tracer
 
     try {
         SAFE_SYSCALL(mkdir("/tmp/fifo", 0777)); // create directory for tracee fifo's
@@ -70,100 +70,29 @@ void Ptrace::startTracing() {
         } // else, one of the descendants changed state
 
         logger_ << "Process #" << waited_pid << " ";
-        int signal_to_inject = 0;
 
-        auto process_iter = process_list_.find(waited_pid); // TODO is there a way not to create TracedProcess? (search by pid)
+        ProcessItr process_iter = process_list_.find(waited_pid);
         if (process_iter != process_list_.end()) {
             if (WIFEXITED(status)) {
-                int retval = WEXITSTATUS(status);
-
-                logger_ << "exited normally with value " << retval << Logger::endl;
-                process_list_.erase(process_iter);
-                event_callbacks_.onExit(waited_pid, retval);
+                handleExitedProcess(status, process_iter);
                 continue;
 
             } else if (WIFSIGNALED(status)) {
-                int signal_num = WTERMSIG(status);
-                char* signal_name = strsignal(signal_num);
-
-                logger_ << "terminated by \"" << signal_name << "\" (#" << signal_num << ")"
-                        << Logger::endl;
-                process_list_.erase(process_iter);
-                event_callbacks_.onTerminate(waited_pid, signal_num);
+                handleTerminatedProcess(status, process_iter);
                 continue;
             }
 
             assert(WIFSTOPPED(status));
             int signal_num = WSTOPSIG(status);
 
-            if (signal_num & PTRACE_O_TRACESYSGOOD_MASK) {
-                TracedProcess& waited_process = process_iter->second;
-                assert(signal_num == (SIGTRAP | PTRACE_O_TRACESYSGOOD_MASK));
+            // FIXME: need to find a way to catch ptrace events
+            if (isSyscallStop(signal_num))
+                handleSyscalledProcess(status, signal_num, process_iter);
+             else
+                handleSignaledProcess(status, signal_num, process_iter);
 
-                waited_process.toggleKernelUser();
-                //process_iter->second.toggleKernelUser();
-
-                logger_ << "syscalled"
-                        // << " with \"" << getSyscall(*process_iter)
-                        << "\"; " << (waited_process.isInsideKernel() ? "Enter" : "Exit") << Logger::endl;
-
-                if(!waited_process.userSignalHandlersAreSet() && getSyscall(waited_process) == Syscall(62)) {
-                    kill(waited_pid, SIGUSR2); // send SIGUSER2 to force tracee to create fifo with his pid
-                    waited_process.setuserSignalHandlersSet(true);
-                }
-                if (waited_process.isInsideKernel()) {
-                    SyscallEnterAction action(*this, waited_process);
-                    event_callbacks_.onSyscallEnter(waited_pid, action);
-                } else {
-                    SyscallExitAction action(*this, waited_process);
-                    event_callbacks_.onSyscallExit(waited_pid, action);
-                }
-
-            } else if (signal_num == SIGTRAP) {
-                const auto event = status >> 16; // status>>8 == (SIGTRAP | PTRACE_EVENT_foo << 8)
-                logger_ << "trapped. Event: " << event;
-
-                switch (event) {
-
-                    case PTRACE_EVENT_FORK:
-                    case PTRACE_EVENT_VFORK:
-                    case PTRACE_EVENT_CLONE:
-                        logger_ << " (fork/clone)" << Logger::endl;
-                        break;
-                    case PTRACE_EVENT_EXEC:
-                        throw std::logic_error("case is not implemented"); // TODO: add a callback
-                    default:
-                        break;
-                }
-
-            } else {
-                char* signal_name = strsignal(signal_num);
-
-                logger_ << "signalled with \"" << signal_name << "\" (#" << signal_num << ")"
-                        << Logger::endl;
-                event_callbacks_.onSignal(waited_pid, signal_num);
-
-                signal_to_inject = signal_num;
-            }
-
-        } else {
-            // newborn process
-            TracedProcess newborn_process(waited_pid);
-            newborn_process.setuserSignalHandlersSet(true); // Newborn process has it's signal user handlers set since it inherited them from the parent.
-
-            process_list_.emplace(waited_pid, newborn_process);
-
-            logger_ << "is first traced" << Logger::endl;
-            event_callbacks_.onStart(waited_pid);
-
-            // after the newborn has stopped, we can now set the correct options
-            auto flags = PTRACE_O_TRACESYSGOOD |
-                         PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK | PTRACE_O_TRACECLONE;
-            SAFE_SYSCALL(ptrace(PTRACE_SETOPTIONS, waited_pid, NULL, flags));
-            // TODO:  set flag
-        }
-
-        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, signal_to_inject));
+        } else
+            handleNewBornProcess(waited_pid);
     }
 }
 
@@ -201,5 +130,112 @@ void Ptrace::SyscallExitAction::setReturnValue(long return_value) {
 
 void Ptrace::setLoggerVerbosity(Logger::Verbosity verbosity){
     logger_ << verbosity;
+}
+
+bool Ptrace::isSyscallStop(int sig_num) {
+    return sig_num == (SIGTRAP | 0x80);
+}
+
+
+void Ptrace::handleExitedProcess(int status, ProcessItr waited_process) {
+    int retval = WEXITSTATUS(status);
+    pid_t waited_pid = waited_process->first;
+
+    logger_ << "exited normally with value " << retval << Logger::endl;
+    process_list_.erase(waited_process);
+    event_callbacks_.onExit(waited_pid, retval);
+}
+
+void Ptrace::handleTerminatedProcess(int status, ProcessItr waited_process) {
+    int signal_num = WTERMSIG(status);
+    char* signal_name = strsignal(signal_num);
+    pid_t waited_pid = waited_process->first;
+
+    logger_ << "terminated by \"" << signal_name << "\" (#" << signal_num << ")"
+            << Logger::endl;
+    process_list_.erase(waited_process);
+    event_callbacks_.onTerminate(waited_pid, signal_num);
+}
+
+void Ptrace::handleSyscalledProcess(int status, int signal_num, ProcessItr waited_process) {
+    pid_t waited_pid = waited_process->first;
+    TracedProcess& process = waited_process->second;
+
+    assert(signal_num == (SIGTRAP | PTRACE_O_TRACESYSGOOD_MASK));
+
+    process.toggleKernelUser();
+
+    if(!process.returningFromSignal()) {
+        logger_ << "syscalled" << " with \"" << getSyscall(process)
+                << "\"; " << (process.isInsideKernel() ? "Enter" : "Exit") << Logger::endl;
+    } else {
+        logger_ << "returned from signal" << Logger::endl;
+    }
+
+    if(startingReturnFromSignal(process))
+        process.setReturningFromSignal(true);
+
+    else if(finishingReturnFromSignal(process)){
+
+        assert(process.returningFromSignal());
+        process.setReturningFromSignal(false);
+    }
+
+    if (process.isInsideKernel()) {
+        SyscallEnterAction action(*this, process);
+        event_callbacks_.onSyscallEnter(waited_pid, action);
+    } else {
+        SyscallExitAction action(*this, process);
+        event_callbacks_.onSyscallExit(waited_pid, action);
+    }
+
+    if(!process.isInsideKernel() &&  getSyscall(process) == Syscall("execve")) {
+        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, SIGUSR2)); // send SIGUSER2 to force tracee to create fifo with his pid
+    } else
+        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, 0));
+}
+
+void Ptrace::handleSignaledProcess(int status, int signal_num, ProcessItr waited_process) {
+    pid_t waited_pid = waited_process->first;
+    char* signal_name = strsignal(signal_num);
+
+    logger_ << "signalled with \"" << signal_name << "\" (#" << signal_num << ")"
+            << " orig_rax " <<
+            static_cast<int>(SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER,
+                                                          waited_pid,
+                                                          REG_OFFSET(orig_rax))))
+            << Logger::endl;
+    event_callbacks_.onSignal(waited_pid, signal_num);
+
+    SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, signal_num));
+}
+
+void Ptrace::handleNewBornProcess(pid_t waited_pid) {
+
+    TracedProcess newborn_process(waited_pid);
+
+    process_list_.emplace(waited_pid, newborn_process);
+
+    logger_ << "is first traced" << Logger::endl;
+    event_callbacks_.onStart(waited_pid);
+
+    // after the newborn has stopped, we can now set the correct options
+    auto flags = PTRACE_O_TRACESYSGOOD |
+                 PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK |
+                 PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC;
+    SAFE_SYSCALL(ptrace(PTRACE_SETOPTIONS, waited_pid, NULL, flags));
+    SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, 0));
+}
+
+
+bool Ptrace::startingReturnFromSignal(const TracedProcess& process) {
+    return (process.isInsideKernel() && getSyscall(process) == Syscall("rt_sigreturn"));
+}
+
+bool Ptrace::finishingReturnFromSignal(const TracedProcess& process) {
+    int orig_rax = static_cast<int>(SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER,
+                                                                 process.pid(),
+                                                                 REG_OFFSET(orig_rax))));
+    return (!process.isInsideKernel() && process.returningFromSignal() && orig_rax < 0);
 }
 

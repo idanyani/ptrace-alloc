@@ -43,8 +43,7 @@ void setUserSignals(){
     TRACEE_SAFE_SYSCALL(sigaction (SIGUSR2, &create_fifo_action, NULL));
 }
 
-// TODO: replace hard-coded path with generic one
-// TODO: research tmpfile()/tempnnam() for creating temporal place for fifo
+/*
 void make_fifo_for_process(){
     char pid_str[20];
     sprintf(pid_str, "%d", getpid());
@@ -56,15 +55,13 @@ void make_fifo_for_process(){
     fifo_fd = TRACEE_SAFE_SYSCALL(open(fifo_path, O_RDWR | O_NONBLOCK));
     printf("%d id fifo_id=%d\n", getpid(), fifo_fd);
 }
-
+*/
 /*
  * called upon execve before main()
  * sets signal handlers for the child (signal handlers are reset upon execv)
  * creates fifo identified with new process's id if wasn't created already
 */
 __attribute__((constructor)) void tracee_begin(){
-    printf("tracee_begin: %d\n", getpid());
-
     setUserSignals();
     kill(getpid(), 0);
 
@@ -100,9 +97,14 @@ void allocate_handler(int address){
  * */
 
 void create_fifo(int address){
-    printf("create_fifo\n");
-    make_fifo_for_process();
+    //make_fifo_for_process();
+    char pid_str[20];
+    sprintf(pid_str, "%d", getpid());
+
+    strcpy(fifo_path, "/tmp/fifo/");
+    strcat(fifo_path, pid_str);
+
+    TRACEE_SAFE_SYSCALL(mkfifo(fifo_path, 0666));
+    fifo_fd = TRACEE_SAFE_SYSCALL(open(fifo_path, O_RDWR | O_NONBLOCK));
+    printf("%d id fifo_id=%d\n", getpid(), fifo_fd);
 }
-
-//
-

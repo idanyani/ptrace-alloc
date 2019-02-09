@@ -95,16 +95,27 @@ class Ptrace {
 
 
   private:
-    void    setSyscall      (const TracedProcess&, Syscall);
-    Syscall getSyscall      (const TracedProcess&);
-    void    setReturnValue  (const TracedProcess&, long);
-    void setTraceeAsStarted(const TracedProcess& traced_process);
 
-    using ProcessList = std::unordered_map<pid_t, TracedProcess>; //TODO: replace with hash-table?
+    using ProcessList = std::unordered_map<pid_t, TracedProcess>;
+    using ProcessItr = std::unordered_map<pid_t, TracedProcess>::iterator;
 
     EventCallbacks& event_callbacks_;
     ProcessList     process_list_;
     Logger          logger_;
+
+    void    setSyscall      (const TracedProcess&, Syscall);
+    Syscall getSyscall      (const TracedProcess&);
+    void    setReturnValue  (const TracedProcess&, long);
+
+    void handleExitedProcess(int status, ProcessItr waited_process);
+    void handleTerminatedProcess(int status, ProcessItr waited_process);
+    void handleSyscalledProcess(int status, int signal_num, ProcessItr waited_process);
+    void handleSignaledProcess(int status, int signal_num, ProcessItr waited_process);
+    void handleNewBornProcess(pid_t waited_pid);
+
+    bool isSyscallStop(int sig_num);
+    bool startingReturnFromSignal(const TracedProcess& process);
+    bool finishingReturnFromSignal(const TracedProcess& process);
 
 };
 
