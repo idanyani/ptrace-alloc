@@ -12,8 +12,17 @@ void childFunction(){
 
 int main(){
 
+    pid_t child;
     char* args[] = {"date"};
-    printf("%d\n", getpid());
     execv("/bin/date", args);
+
+    // FIXME comment in
+    /*
+    child = fork();
+    if(child == 0)
+        execv("/bin/date", args);
+    else
+        printf("%d\n", getpid());
+        */
 }
 

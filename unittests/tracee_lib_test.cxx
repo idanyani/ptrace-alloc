@@ -6,7 +6,8 @@
 
 TraceeLibTest::TraceeLibTest() {
     char* args[] = {const_cast<char*>("./tracee_lib_tracee"), nullptr};
-    p_ptrace.reset(new Ptrace(args[0], args, tracee_lib_event_callbacks));
+//    p_ptrace.reset(new Ptrace(args[0], args, tracee_lib_event_callbacks));
+    p_ptrace.reset(new Ptrace(args[0], args, mock_event_callbacks));
 }
 void TraceeLibEventCallbacks::onStart    (pid_t pid){
     //printf("TraceeLibEventCallbacks onStart %d\n", getpid());

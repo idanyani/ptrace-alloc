@@ -10,8 +10,12 @@ using ::testing::_;
 // FIXME: use google test features for verifying
 TEST_F(TraceeLibTest, SendSiguser2Test){
 
-    std::cout << "SendSiguser2Test start " << getpid() << std::endl;
+    //std::cout << "SendSiguser2Test start " << getpid() << std::endl;
+    EXPECT_CALL(mock_event_callbacks,
+                onStart);
 
+    EXPECT_CALL(mock_event_callbacks,
+                onSignal(_, SIGUSR2));
     p_ptrace->startTracing();
 
 

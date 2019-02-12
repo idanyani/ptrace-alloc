@@ -73,6 +73,7 @@ void Ptrace::startTracing() {
 
         ProcessItr process_iter = process_list_.find(waited_pid);
         if (process_iter != process_list_.end()) {
+
             if (WIFEXITED(status)) {
                 handleExitedProcess(status, process_iter);
                 continue;
@@ -84,7 +85,7 @@ void Ptrace::startTracing() {
 
             assert(WIFSTOPPED(status));
             int signal_num = WSTOPSIG(status);
-
+            //logger_ << "\nDBG : " << status << " " << strsignal(signal_num) << logger_.endl;
             // FIXME: need to find a way to catch ptrace events
             if (isSyscallStop(signal_num))
                 handleSyscalledProcess(status, signal_num, process_iter);
@@ -176,7 +177,6 @@ void Ptrace::handleSyscalledProcess(int status, int signal_num, ProcessItr waite
         process.setReturningFromSignal(true);
 
     else if(finishingReturnFromSignal(process)){
-
         assert(process.returningFromSignal());
         process.setReturningFromSignal(false);
     }
@@ -189,8 +189,13 @@ void Ptrace::handleSyscalledProcess(int status, int signal_num, ProcessItr waite
         event_callbacks_.onSyscallExit(waited_pid, action);
     }
 
-    if(!process.isInsideKernel() &&  getSyscall(process) == Syscall("execve")) {
-        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, SIGUSR2)); // send SIGUSER2 to force tracee to create fifo with his pid
+
+    if(!process.isInsideKernel() && getSyscall(process) == Syscall("kill")){
+        int kill_sig_num = static_cast<int>(SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER,
+                                                                         waited_pid,
+                                                                         REG_OFFSET(rsi))));
+        if(kill_sig_num == 0)
+            SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, SIGUSR2)); // send SIGUSER2 to force tracee to create fifo with his pid
     } else
         SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, 0));
 }
@@ -222,9 +227,10 @@ void Ptrace::handleNewBornProcess(pid_t waited_pid) {
     // after the newborn has stopped, we can now set the correct options
     auto flags = PTRACE_O_TRACESYSGOOD |
                  PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK |
-                 PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC;
+                 PTRACE_O_TRACECLONE;
     SAFE_SYSCALL(ptrace(PTRACE_SETOPTIONS, waited_pid, NULL, flags));
     SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, 0));
+//    SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, SIGUSR2)); // child inherited signal handlers from the parent, therefore we can send signal to make child mkfifo
 }
 
 

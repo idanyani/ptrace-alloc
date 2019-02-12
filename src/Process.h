@@ -33,6 +33,7 @@ class TracedProcess {
         returning_from_signal_ = is_returning_from_signal;
     }
 
+
   private:
     pid_t pid_;
     bool in_kernel_;

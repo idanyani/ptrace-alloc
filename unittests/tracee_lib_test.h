@@ -6,6 +6,7 @@
 #define PTRACE_ALLOC_TRACEE_LIB_TEST_H
 
 #include "Ptrace.h"
+#include "PtraceTest.h"
 #include <memory>        // unique_ptr
 #include <unordered_map>
 #include <gmock/gmock.h>
@@ -29,7 +30,8 @@ class TraceeLibTest : public testing::Test {
     TraceeLibTest();
 
     std::unique_ptr<Ptrace> p_ptrace;
-    TraceeLibEventCallbacks tracee_lib_event_callbacks;
+//    TraceeLibEventCallbacks tracee_lib_event_callbacks;
+    MockEventCallbacks      mock_event_callbacks;
 };
 
 
