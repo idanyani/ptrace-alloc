@@ -9,6 +9,8 @@
 #include <string.h> // strcpy, strcat
 #include <errno.h> // errno
 #include <fcntl.h> // open
+#include <assert.h>
+#include <stdbool.h>
 
 #include "tracee_lib.h"
 
@@ -49,13 +51,17 @@ void setUserSignals(){
  * creates fifo identified with new process's id if wasn't created already
 */
 __attribute__((constructor)) void tracee_begin(){
-    setUserSignals();
-    kill(getpid(), 0);
+    printf("tracee begin %d\n", getpid());
+    fifo_fd = 0; // clean variables from parent's values
+    fifo_path[0] = "\0";
 
+    assert(fifo_fd == 0);
+    setUserSignals();
+    TRACEE_SAFE_SYSCALL(kill(getpid(), 0));
 }
 
 __attribute__((destructor)) void tracee_end(){
-    printf("tracee_end: %d fifo_fd: %d\n", getpid(), fifo_fd);
+    printf("tracee_end: %d fifo_fd: %d fifo_path: %s\n", getpid(), fifo_fd, fifo_path);
     int fifo_exists = TRACEE_SAFE_SYSCALL(access(fifo_path, F_OK));
 
     if(fifo_exists == 0) {

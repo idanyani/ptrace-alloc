@@ -21,6 +21,8 @@ using std::string;
 
 #define PTRACE_O_TRACESYSGOOD_MASK  0x80
 
+#define IS_EVENT(status_, event_) status_>> 8 == (SIGTRAP | event_ << 8)
+
 
 Ptrace::Ptrace(const std::string& executable, char* args[], EventCallbacks& event_handler)
         : event_callbacks_(event_handler) {
@@ -202,7 +204,19 @@ void Ptrace::handleSyscalledProcess(int status, int signal_num, ProcessItr waite
 
 void Ptrace::handleSignaledProcess(int status, int signal_num, ProcessItr waited_process) {
     pid_t waited_pid = waited_process->first;
-    char* signal_name = strsignal(signal_num);
+    char* signal_name = strsignal(signal_num); // FIXME: take path from command args
+ 
+    if(signal_num == SIGTRAP){ // FIXME: do we want to add events to allbacks API?
+        if(IS_EVENT(status, PTRACE_EVENT_FORK))
+            logger_ << "FORKED ";
+        else if(IS_EVENT(status, PTRACE_EVENT_EXEC)) {
+            logger_ << "EXEC'ED ";
+        }
+        else if(IS_EVENT(status, PTRACE_EVENT_CLONE))
+            ;
+        else if(IS_EVENT(status, PTRACE_EVENT_VFORK))
+            ;
+    }
 
     logger_ << "signalled with \"" << signal_name << "\" (#" << signal_num << ")"
             << " orig_rax " <<
@@ -227,10 +241,9 @@ void Ptrace::handleNewBornProcess(pid_t waited_pid) {
     // after the newborn has stopped, we can now set the correct options
     auto flags = PTRACE_O_TRACESYSGOOD |
                  PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK |
-                 PTRACE_O_TRACECLONE;
+                 PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC;
     SAFE_SYSCALL(ptrace(PTRACE_SETOPTIONS, waited_pid, NULL, flags));
     SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, 0));
-//    SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, SIGUSR2)); // child inherited signal handlers from the parent, therefore we can send signal to make child mkfifo
 }
 
 

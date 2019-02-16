@@ -3,36 +3,10 @@
 //
 
 #include "tracee_lib_test.h"
+std::unique_ptr<Ptrace>
+        initPtrace(char* args[], MockEventCallbacks& mock_event_callbacks) {
+    std::unique_ptr<Ptrace> p_ptarce;
 
-TraceeLibTest::TraceeLibTest() {
-    char* args[] = {const_cast<char*>("./tracee_lib_tracee"), nullptr};
-//    p_ptrace.reset(new Ptrace(args[0], args, tracee_lib_event_callbacks));
-    p_ptrace.reset(new Ptrace(args[0], args, mock_event_callbacks));
+    p_ptarce.reset(new Ptrace(args[0], args, mock_event_callbacks));
+    return p_ptarce;
 }
-void TraceeLibEventCallbacks::onStart    (pid_t pid){
-    //printf("TraceeLibEventCallbacks onStart %d\n", getpid());
-}
-void TraceeLibEventCallbacks::onExit     (pid_t pid, int retval){
-    //printf("TraceeLibEventCallbacks onExit %d\n", getpid());
-}
-
-void TraceeLibEventCallbacks::onSignal   (pid_t pid, int signal_num){
-    //printf("TraceeLibEventCallbacks onSignal %d\n", getpid());
-}
-void TraceeLibEventCallbacks::onSyscallEnter(pid_t pid, Ptrace::SyscallEnterAction& action){
-    // printf("TraceeLibEventCallbacks onSyscallEnter %d\n", getpid());
-}
-
-void TraceeLibEventCallbacks::onSyscallExit (pid_t pid, Ptrace::SyscallExitAction& action){
-    //printf("TraceeLibEventCallbacks onSyscallExit %d\n", getpid());
-}
-
-void TraceeLibEventCallbacks::onTerminate(pid_t, int signal_num) {
-
-}
-/*
-void TraceeLibTest::SetUp() {
-    char* args[] = {const_cast<char*>("./tracee_lib_tracee"), nullptr};
-    p_ptrace.reset(new Ptrace(args[0], args, tracee_lib_event_callbacks));
-}
-*/
