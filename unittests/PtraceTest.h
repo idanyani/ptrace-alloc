@@ -49,6 +49,11 @@ class MockEventCallbacks : public Ptrace::EventCallbacks {
     ~MockEventCallbacks() override ;
 
     MOCK_METHOD1(onStart        , void(pid_t));
+    MOCK_METHOD1(onFork         , void(pid_t));
+    MOCK_METHOD1(onClone        , void(pid_t));
+    MOCK_METHOD1(onVFork        , void(pid_t));
+    MOCK_METHOD1(onExec        , void(pid_t));
+    MOCK_METHOD1(onVForkDone        , void(pid_t));
     MOCK_METHOD2(onExit         , void(pid_t, int retval));
     MOCK_METHOD2(onSyscallEnterT, void(pid_t, Ptrace::SyscallEnterAction&));
     MOCK_METHOD2(onSyscallExitT , void(pid_t, Ptrace::SyscallExitAction&));

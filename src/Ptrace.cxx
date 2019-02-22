@@ -205,30 +205,56 @@ void Ptrace::handleSyscalledProcess(int status, int signal_num, ProcessItr waite
 
 void Ptrace::handleSignaledProcess(int status, int signal_num, ProcessItr waited_process) {
     pid_t waited_pid = waited_process->first;
-    char* signal_name = strsignal(signal_num); // FIXME: take path from command args
+    char* signal_name = strsignal(signal_num);
 
-    if(signal_num == SIGTRAP){ // FIXME: do we want to add events to allbacks API?
-        if(IS_EVENT(status, PTRACE_EVENT_FORK))
-            logger_ << "FORKED ";
-        else if(IS_EVENT(status, PTRACE_EVENT_EXEC)) {
-            logger_ << "EXEC'ED ";
-        }
-        else if(IS_EVENT(status, PTRACE_EVENT_CLONE))
-            ;
-        else if(IS_EVENT(status, PTRACE_EVENT_VFORK))
-            ;
+    if(signal_num == SIGTRAP){
+        handleTrappedProcess(status, signal_num, waited_process);
+    } else {
+
+        logger_ << "signalled with \"" << signal_name << "\" (#" << signal_num << ")"
+                << " orig_rax " <<
+                static_cast<int>(SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER,
+                                                              waited_pid,
+                                                              REG_OFFSET(orig_rax))))
+                << Logger::endl;
+        event_callbacks_.onSignal(waited_pid, signal_num);
+
+        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, signal_num));
     }
+}
 
-    logger_ << "signalled with \"" << signal_name << "\" (#" << signal_num << ")"
-            << " orig_rax " <<
-            static_cast<int>(SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER,
-                                                          waited_pid,
-                                                          REG_OFFSET(orig_rax))))
-            << Logger::endl;
-    event_callbacks_.onSignal(waited_pid, signal_num);
+void Ptrace::handleTrappedProcess(int status, int signal_num, Ptrace::ProcessItr waited_process) {
+    pid_t waited_pid = waited_process->first;
+    assert(signal_num == SIGTRAP);
+
+    logger_ << "trapped: ";
+    if(IS_EVENT(status, PTRACE_EVENT_FORK)) {
+        event_callbacks_.onFork(waited_pid);
+        logger_ << "fork" << logger_.endl;
+    }
+    else if(IS_EVENT(status, PTRACE_EVENT_EXEC)) {
+        event_callbacks_.onExec(waited_pid);
+        logger_ << "exec" << logger_.endl;
+    }
+    else if(IS_EVENT(status, PTRACE_EVENT_CLONE)){
+        event_callbacks_.onClone(waited_pid);
+        logger_ << "clone" << logger_.endl;
+    }
+    else if(IS_EVENT(status, PTRACE_EVENT_VFORK)){
+        event_callbacks_.onVFork(waited_pid);
+        logger_ << "vfork" << logger_.endl;
+    }
+    else if(IS_EVENT(status, PTRACE_EVENT_VFORK_DONE)){
+        event_callbacks_.onVForkDone(waited_pid);
+        logger_ << "vfork done" << logger_.endl;
+    } else{
+        event_callbacks_.onSignal(waited_pid, signal_num);
+        logger_ << "received signal SIGTRAP" << logger_.endl;
+    }
 
     SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, signal_num));
 }
+
 
 void Ptrace::handleNewBornProcess(pid_t waited_pid) {
 
@@ -240,13 +266,12 @@ void Ptrace::handleNewBornProcess(pid_t waited_pid) {
     event_callbacks_.onStart(waited_pid);
 
     // after the newborn has stopped, we can now set the correct options
-    auto flags = PTRACE_O_TRACESYSGOOD |
-                 PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK |
-                 PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC;
+    auto flags = PTRACE_O_TRACESYSGOOD | PTRACE_O_TRACEFORK |
+                    PTRACE_O_TRACEVFORK | PTRACE_O_TRACEVFORKDONE |
+                    PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC;
     SAFE_SYSCALL(ptrace(PTRACE_SETOPTIONS, waited_pid, NULL, flags));
     SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, 0));
 }
-
 
 bool Ptrace::startingReturnFromSignal(const TracedProcess& process) {
     return (process.isInsideKernel() && getSyscall(process) == Syscall("rt_sigreturn"));

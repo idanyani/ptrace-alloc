@@ -78,7 +78,14 @@ class Ptrace {
         virtual void onSignal   (pid_t, int signal_num) {}
 
         virtual void onSyscallEnter(pid_t, SyscallEnterAction&) {}
-        virtual void onSyscallExit (pid_t, SyscallExitAction&) {}
+        virtual void onSyscallExit (pid_t, SyscallExitAction&)  {}
+
+        // Events callbacks
+        virtual void onFork(pid_t)      {}
+        virtual void onVFork(pid_t)     {}
+        virtual void onVForkDone(pid_t) {}
+        virtual void onClone(pid_t)     {}
+        virtual void onExec(pid_t)    {}
 
     };
 
@@ -111,7 +118,9 @@ class Ptrace {
     void handleTerminatedProcess(int status, ProcessItr waited_process);
     void handleSyscalledProcess(int status, int signal_num, ProcessItr waited_process);
     void handleSignaledProcess(int status, int signal_num, ProcessItr waited_process);
+    void handleTrappedProcess(int status, int signal_num, ProcessItr waited_process);
     void handleNewBornProcess(pid_t waited_pid);
+
 
     bool isSyscallStop(int sig_num);
     bool startingReturnFromSignal(const TracedProcess& process);

@@ -23,7 +23,7 @@ TEST(TraceeLibTest, SendSiguser2Test){
             .Times(Exactly(2));         // tracer sends SIGUSR2 to the tracee. Since after execv, the constructor
                                         // is called, SIGUS@ will be sent once again
     EXPECT_CALL(mock_event_callbacks,
-                onSignal(_, SIGTRAP)) // When calling execv, tracee gets SIGTRAP because of PTRACE_O_TRACEEXEC option
+                onExec(_)) // When calling execv, tracee gets SIGTRAP because of PTRACE_O_TRACEEXEC option
             .Times(Exactly(1));
 
     EXPECT_CALL(mock_event_callbacks,
@@ -61,8 +61,12 @@ TEST(TraceeLibTest, ForkTest){
                 onSignal(_, SIGUSR2))
             .Times(Exactly(3));         // 1 tracee starts from the beginning, another does execve twice
     EXPECT_CALL(mock_event_callbacks,
-                onSignal(_, SIGTRAP))
-            .Times(Exactly(3));         // 1 fork and 2 execve's
+                onFork(_))
+            .Times(Exactly(1));         // 1 fork
+
+    EXPECT_CALL(mock_event_callbacks,
+                onExec(_))
+            .Times(Exactly(2));         // 2 execve's
 
     EXPECT_CALL(mock_event_callbacks,
                 onExit)
