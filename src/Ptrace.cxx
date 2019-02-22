@@ -29,6 +29,7 @@ Ptrace::Ptrace(const std::string& executable, char* args[], EventCallbacks& even
     // TODO: add path to tracee library as an argument
     // FIXME: do we need to do LD_PRELOAD trick after execve for the tracee?
     char env_var[] = "LD_PRELOAD=/home/mac/CLionProjects/ptrace-alloc/cmake-build-debug/TraceeLib/libtracee_l.so";
+
     putenv(env_var);
 
     setUserSignals();  // set up user signal handlers for tracer
@@ -205,7 +206,7 @@ void Ptrace::handleSyscalledProcess(int status, int signal_num, ProcessItr waite
 void Ptrace::handleSignaledProcess(int status, int signal_num, ProcessItr waited_process) {
     pid_t waited_pid = waited_process->first;
     char* signal_name = strsignal(signal_num); // FIXME: take path from command args
- 
+
     if(signal_num == SIGTRAP){ // FIXME: do we want to add events to allbacks API?
         if(IS_EVENT(status, PTRACE_EVENT_FORK))
             logger_ << "FORKED ";

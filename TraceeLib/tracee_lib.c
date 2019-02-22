@@ -27,7 +27,6 @@ int traceeHandleSyscallReturnValue(int syscall_return_value, unsigned int code_l
 #define TRACEE_SAFE_SYSCALL(syscall) \
 ({int _ret_val = traceeHandleSyscallReturnValue(syscall, __LINE__); _ret_val;})
 
-
 char fifo_path[80];
 int fifo_fd;
 
@@ -91,12 +90,16 @@ void allocate_handler(int address){
 
 void create_fifo(int address){
     char pid_str[20];
+    int fifo_exists;
     sprintf(pid_str, "%d", getpid());
 
     strcpy(fifo_path, "/tmp/fifo/");
     strcat(fifo_path, pid_str);
 
-    TRACEE_SAFE_SYSCALL(mkfifo(fifo_path, 0666));
-    fifo_fd = TRACEE_SAFE_SYSCALL(open(fifo_path, O_RDWR | O_NONBLOCK));
-    printf("%d id fifo_id=%d\n", getpid(), fifo_fd);
+    fifo_exists = access(fifo_path, F_OK);
+    if(fifo_exists < 0 && errno == ENOENT) { // if FIFO has not been created yet for the process, create it
+        TRACEE_SAFE_SYSCALL(mkfifo(fifo_path, 0666));
+        fifo_fd = TRACEE_SAFE_SYSCALL(open(fifo_path, O_RDWR | O_NONBLOCK));
+        printf("%d id fifo_id=%d\n", getpid(), fifo_fd);
+    }
 }

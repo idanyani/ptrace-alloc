@@ -15,15 +15,29 @@ TEST(TraceeLibTest, SendSiguser2Test){
     std::unique_ptr<Ptrace> p_ptrace = initPtrace(args, mock_event_callbacks);
 
     EXPECT_CALL(mock_event_callbacks,
-                onStart);
+                onStart)
+            .Times(Exactly(1));
 
     EXPECT_CALL(mock_event_callbacks,
-                onSignal(_, SIGUSR2));
+                onSignal(_, SIGUSR2)) // After tracing kill(get_pid(), 0) in tracee lib constructor,
+            .Times(Exactly(2));         // tracer sends SIGUSR2 to the tracee. Since after execv, the constructor
+                                        // is called, SIGUS@ will be sent once again
+    EXPECT_CALL(mock_event_callbacks,
+                onSignal(_, SIGTRAP)) // When calling execv, tracee gets SIGTRAP because of PTRACE_O_TRACEEXEC option
+            .Times(Exactly(1));
 
     EXPECT_CALL(mock_event_callbacks,
-                onExit);
+                onSyscallEnterT(_,_))
+            .Times(AnyNumber());
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscallExitT(_,_))
+            .Times(AnyNumber());
+
+    EXPECT_CALL(mock_event_callbacks,
+                onExit)
+            .Times(Exactly(1));
+
     p_ptrace->startTracing();
-
 }
 
 TEST(TraceeLibTest, ForkTest){

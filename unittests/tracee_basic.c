@@ -8,10 +8,9 @@
 
 int main(){
     pid_t child;
-    char* args[] = {"date"};
-    // FIXME neew to add poking of LD preload upon execv
-    char* envp[] = {"LD_PRELOAD=/home/mac/CLionProjects/ptrace-alloc/cmake-build-debug/TraceeLib/libtracee_l.so", 0};
-    execve("/bin/date", args, envp);
+    char* args[] = {"date", NULL};
+
+    execv("/bin/date", args);
 
     return 0;
 }
