@@ -1,6 +1,7 @@
 
 #include <sys/types.h>
 #include "tracee_lib_test.h"
+#include "tracee_lib_fifo_test.h"
 
 using ::testing::_;
 using testing::Exactly;
@@ -69,6 +70,10 @@ TEST(TraceeLibTest, ForkTest){
             .Times(Exactly(2));         // 2 execve's
 
     EXPECT_CALL(mock_event_callbacks,
+                onSignal(_, SIGCHLD))
+            .Times(AnyNumber());        // because of tracee's child process
+
+    EXPECT_CALL(mock_event_callbacks,
                 onExit)
             .Times(Exactly(2));         // 2 tracees
 
@@ -87,4 +92,17 @@ TEST(TraceeLibTest, ForkStressTest){
 
 }
 */
-// FIXME: add FIFO test
+
+TEST(TraceeLibTest, FifoBasicTest){
+//    MockEventCallbacks mock_event_callbacks;
+    TraceeLibFifoTest fifoCallbacks;
+    char* args[] = {const_cast<char*>("./tracee_fifo"), nullptr};
+    Ptrace ptrace(args[0], args, fifoCallbacks);
+
+    ptrace.setLoggerVerbosity(Logger::Verbosity::OFF);
+
+    ptrace.startTracing();
+
+    SUCCEED();
+}
+

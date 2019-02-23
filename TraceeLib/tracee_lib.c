@@ -52,7 +52,7 @@ void setUserSignals(){
 __attribute__((constructor)) void tracee_begin(){
     printf("tracee begin %d\n", getpid());
     fifo_fd = 0; // clean variables from parent's values
-    fifo_path[0] = "\0";
+    fifo_path[0] = '\0';
 
     assert(fifo_fd == 0);
     setUserSignals();
@@ -60,7 +60,7 @@ __attribute__((constructor)) void tracee_begin(){
 }
 
 __attribute__((destructor)) void tracee_end(){
-    printf("tracee_end: %d fifo_fd: %d fifo_path: %s\n", getpid(), fifo_fd, fifo_path);
+    printf("tracee_end: %d\n", getpid());
     int fifo_exists = TRACEE_SAFE_SYSCALL(access(fifo_path, F_OK));
 
     if(fifo_exists == 0) {
@@ -78,7 +78,10 @@ __attribute__((destructor)) void tracee_end(){
 
 void allocate_handler(int address){
     // TODO: implement
+    char message_buff[64];
     printf("allocate_handler: %d\n", getpid());
+    TRACEE_SAFE_SYSCALL(read(fifo_fd, message_buff, 64));
+    printf("allocate_handler message: %s\n", message_buff);
 }
 
 /*
@@ -93,13 +96,13 @@ void create_fifo(int address){
     int fifo_exists;
     sprintf(pid_str, "%d", getpid());
 
-    strcpy(fifo_path, "/tmp/fifo/");
+    strcpy(fifo_path, "/tmp/ptrace_fifo/");
     strcat(fifo_path, pid_str);
 
     fifo_exists = access(fifo_path, F_OK);
     if(fifo_exists < 0 && errno == ENOENT) { // if FIFO has not been created yet for the process, create it
         TRACEE_SAFE_SYSCALL(mkfifo(fifo_path, 0666));
         fifo_fd = TRACEE_SAFE_SYSCALL(open(fifo_path, O_RDWR | O_NONBLOCK));
-        printf("%d id fifo_id=%d\n", getpid(), fifo_fd);
+        printf("create fifo: pid %d fifo_id=%d\n", getpid(), fifo_fd);
     }
 }

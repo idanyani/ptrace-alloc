@@ -40,6 +40,7 @@ class Ptrace {
         friend class Ptrace;
       public:
         Syscall getSyscall() const;
+        const TracedProcess& getTracee() const;
 
       protected:
         SyscallAction(Ptrace& ptrace, const TracedProcess& tracee)
@@ -77,8 +78,8 @@ class Ptrace {
         virtual void onTerminate(pid_t, int signal_num) {}
         virtual void onSignal   (pid_t, int signal_num) {}
 
-        virtual void onSyscallEnter(pid_t, SyscallEnterAction&) {}
-        virtual void onSyscallExit (pid_t, SyscallExitAction&)  {}
+        virtual int onSyscallEnter(pid_t, SyscallEnterAction&) { return 0;}
+        virtual int onSyscallExit (pid_t, SyscallExitAction&)  { return 0;}
 
         // Events callbacks
         virtual void onFork(pid_t)      {}
@@ -127,6 +128,7 @@ class Ptrace {
     bool finishingReturnFromSignal(const TracedProcess& process);
 
 };
+
 
 
 #endif //PTRACE_ALLOC_PTRACE_H

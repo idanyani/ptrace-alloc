@@ -60,9 +60,9 @@ class MockEventCallbacks : public Ptrace::EventCallbacks {
     MOCK_METHOD2(onTerminate    , void(pid_t, int signal_num));
     MOCK_METHOD2(onSignal       , void(pid_t, int signal_num));
 
-    void onSyscallEnter(pid_t pid, Ptrace::SyscallEnterAction& action) override;
+    int onSyscallEnter(pid_t pid, Ptrace::SyscallEnterAction& action) override;
 
-    void onSyscallExit(pid_t pid, Ptrace::SyscallExitAction& action) override;
+    int onSyscallExit(pid_t pid, Ptrace::SyscallExitAction& action) override;
 
   private:
     bool test_started;  // Used to ignore all the syscalls before the first "kill" in the tracee.

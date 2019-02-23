@@ -27,16 +27,20 @@ class MyCallbacks : public Ptrace::EventCallbacks {
 
     }
 
-    virtual void onSyscallEnter(pid_t pid, Ptrace::SyscallEnterAction& action) {
+    virtual int onSyscallEnter(pid_t pid, Ptrace::SyscallEnterAction& action) {
         cout << "SYSENTER: PID: " << pid << "; retval:" << action.getSyscall() << endl;
         if (c.convertCloneToGetpidAndMakeItReturn3 && action.getSyscall() == Syscall("clone"))
             action.setSyscall(Syscall("getpid"));
+
+        return 0;
     }
 
-    virtual void onSyscallExit (pid_t pid, Ptrace::SyscallExitAction& action) {
+    virtual int onSyscallExit (pid_t pid, Ptrace::SyscallExitAction& action) {
         cout << "SYSEXIT : PID: " << pid << "; retval:" << action.getSyscall() << endl;
         if (c.convertCloneToGetpidAndMakeItReturn3 && action.getSyscall() == Syscall("getpid"))
             action.setReturnValue(3);
+
+        return 0;
     }
 
 };

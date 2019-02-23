@@ -35,9 +35,9 @@ Ptrace::Ptrace(const std::string& executable, char* args[], EventCallbacks& even
     setUserSignals();  // set up user signal handlers for tracer
 
     try {
-        SAFE_SYSCALL(mkdir("/tmp/fifo", 0777)); // create directory for tracee fifo's
+        SAFE_SYSCALL(mkdir("/tmp/ptrace_fifo", 0777)); // create directory for tracee fifo's
     } catch(const std::system_error& e){
-        if(e.code().value() != EEXIST) // if /tmp/fifo already exists, resume the execution as normal
+        if(e.code().value() != EEXIST) // if /tmp/ptrace_fifo already exists, resume the execution as normal
             throw e;
     }
     pid_t tracee_pid = SAFE_SYSCALL(fork());
@@ -45,14 +45,14 @@ Ptrace::Ptrace(const std::string& executable, char* args[], EventCallbacks& even
     if (tracee_pid == 0) { // child process
 
         SAFE_SYSCALL(ptrace(PTRACE_TRACEME, 0, NULL, NULL));
-        // TODO: consider using execve instead of putenv
         SAFE_SYSCALL(execv(executable.c_str(), args));
         assert(false); // can't get here, SAFE_SYSCALL will throw on error
     }
 }
 
 Ptrace::~Ptrace() {
-    // TODO: remove fifo and fifo directory
+    //SAFE_SYSCALL(rmdir("/tmp/ptrace_fifo")); // FIXME: integrate boost FileSystem
+
     for (auto process : process_list_) {
         kill(process.first, SIGKILL);
     }
@@ -124,6 +124,11 @@ Syscall Ptrace::SyscallAction::getSyscall() const {
     return ptrace_.getSyscall(tracee_);
 }
 
+const TracedProcess& Ptrace::SyscallAction::getTracee() const {
+    return tracee_;
+}
+
+
 void Ptrace::SyscallEnterAction::setSyscall(Syscall syscall) {
     ptrace_.setSyscall(tracee_, syscall);
 }
@@ -163,6 +168,7 @@ void Ptrace::handleTerminatedProcess(int status, ProcessItr waited_process) {
 
 void Ptrace::handleSyscalledProcess(int status, int signal_num, ProcessItr waited_process) {
     pid_t waited_pid = waited_process->first;
+    int signal_to_inject = 0;
     TracedProcess& process = waited_process->second;
 
     assert(signal_num == (SIGTRAP | PTRACE_O_TRACESYSGOOD_MASK));
@@ -176,6 +182,14 @@ void Ptrace::handleSyscalledProcess(int status, int signal_num, ProcessItr waite
         logger_ << "returned from signal" << Logger::endl;
     }
 
+    if (process.isInsideKernel()) {
+        SyscallEnterAction action(*this, process);
+        signal_to_inject = event_callbacks_.onSyscallEnter(waited_pid, action);
+    } else {
+        SyscallExitAction action(*this, process);
+        signal_to_inject = event_callbacks_.onSyscallExit(waited_pid, action);
+    }
+
     if(startingReturnFromSignal(process))
         process.setReturningFromSignal(true);
 
@@ -184,13 +198,7 @@ void Ptrace::handleSyscalledProcess(int status, int signal_num, ProcessItr waite
         process.setReturningFromSignal(false);
     }
 
-    if (process.isInsideKernel()) {
-        SyscallEnterAction action(*this, process);
-        event_callbacks_.onSyscallEnter(waited_pid, action);
-    } else {
-        SyscallExitAction action(*this, process);
-        event_callbacks_.onSyscallExit(waited_pid, action);
-    }
+
 
 
     if(!process.isInsideKernel() && getSyscall(process) == Syscall("kill")){
@@ -200,7 +208,7 @@ void Ptrace::handleSyscalledProcess(int status, int signal_num, ProcessItr waite
         if(kill_sig_num == 0)
             SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, SIGUSR2)); // send SIGUSER2 to force tracee to create fifo with his pid
     } else
-        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, 0));
+        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, signal_to_inject));
 }
 
 void Ptrace::handleSignaledProcess(int status, int signal_num, ProcessItr waited_process) {
