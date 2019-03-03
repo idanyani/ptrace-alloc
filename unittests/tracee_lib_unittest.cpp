@@ -6,6 +6,7 @@
 using ::testing::_;
 using testing::Exactly;
 using testing::AnyNumber;
+using testing::AtLeast;
 
 
 // Testing successful SIGUSR2 signal sending to the tracee (for now, verified via print)
@@ -81,23 +82,76 @@ TEST(TraceeLibTest, ForkTest){
 
 }
 
-/*
-TEST(TraceeLibTest, ForkStressTest){
-    int
-    MockEventCallbacks mock_event_callbacks;
-    char* args[] = {const_cast<char*>("./tracee_fork"), nullptr};
-
-    std::unique_ptr<Ptrace> p_ptrace = initPtrace(args, mock_event_callbacks);
-
-
-}
-*/
-
 TEST(TraceeLibTest, FifoBasicTest){
 //    MockEventCallbacks mock_event_callbacks;
-    TraceeLibFifoTest fifoCallbacks;
-    char* args[] = {const_cast<char*>("./tracee_fifo"), nullptr};
+    SendMessageCallback fifoCallbacks(std::string("getcwd"));
+
+    char* args[] = {const_cast<char*>("./tracee_fifo"), const_cast<char*>("0"), nullptr};
     Ptrace ptrace(args[0], args, fifoCallbacks);
+
+    ptrace.setLoggerVerbosity(Logger::Verbosity::OFF);
+
+    EXPECT_CALL(fifoCallbacks,
+                onStart)
+            .Times(Exactly(1));         // 2 tracees
+
+    EXPECT_CALL(fifoCallbacks,
+                onSyscallEnterT(_,_))
+            .Times(AnyNumber());
+
+    EXPECT_CALL(fifoCallbacks,
+                onSyscallExitT(_,_))
+            .Times(AnyNumber());
+
+    EXPECT_CALL(fifoCallbacks,
+                onSignal(_, SIGUSR2))
+            .Times(Exactly(1));
+
+    EXPECT_CALL(fifoCallbacks,
+                onSignal(_, SIGUSR1))
+            .Times(Exactly(1));
+    EXPECT_CALL(fifoCallbacks,
+                onExit(_,_))
+            .Times(Exactly(1));
+/*
+    EXPECT_CALL(fifoCallbacks,
+                onSyscallExitT(_, Syscall("read")))
+            .Times(AtLeast(1));
+  */
+    ptrace.startTracing();
+
+    SUCCEED();
+}
+
+TEST(TraceeLibTest, SendMessageOnMmapTest){
+//    MockEventCallbacks mock_event_callbacks;
+    SendMessageCallback fifoCallbacks(std::string("mmap"));
+
+    char* args[] = {const_cast<char*>("./tracee_fifo"), const_cast<char*>("0"), nullptr};
+    Ptrace ptrace(args[0], args, fifoCallbacks);
+
+    EXPECT_CALL(fifoCallbacks,
+                onStart)
+            .Times(Exactly(1));         // 2 tracees
+
+    EXPECT_CALL(fifoCallbacks,
+                onSyscallEnterT(_,_))
+            .Times(AnyNumber());
+
+    EXPECT_CALL(fifoCallbacks,
+                onSyscallExitT(_,_))
+            .Times(AnyNumber());
+
+    EXPECT_CALL(fifoCallbacks,
+                onSignal(_, SIGUSR2))
+            .Times(Exactly(1));
+
+    EXPECT_CALL(fifoCallbacks,
+                onSignal(_, SIGUSR1))
+            .Times(Exactly(1));
+    EXPECT_CALL(fifoCallbacks,
+                onExit(_,_))
+            .Times(Exactly(1));
 
     ptrace.setLoggerVerbosity(Logger::Verbosity::OFF);
 
@@ -105,4 +159,53 @@ TEST(TraceeLibTest, FifoBasicTest){
 
     SUCCEED();
 }
+
+TEST(TraceeLibTest, SendMessageOnMmapAndExecveTest){
+//    MockEventCallbacks mock_event_callbacks;
+    SendMessageCallback fifoCallbacks(std::string("mmap"));
+
+    char* args[] = {const_cast<char*>("./tracee_fifo"), const_cast<char*>("1"), nullptr};
+    Ptrace ptrace(args[0], args, fifoCallbacks);
+
+    /*
+    EXPECT_CALL(fifoCallbacks,
+                onStart)
+            .Times(Exactly(1));         // 2 tracees
+
+    EXPECT_CALL(fifoCallbacks,
+                onSyscallEnterT(_,_))
+            .Times(AnyNumber());
+
+    EXPECT_CALL(fifoCallbacks,
+                onSyscallExitT(_,_))
+            .Times(AnyNumber());
+
+    EXPECT_CALL(fifoCallbacks,
+                onSignal(_, SIGUSR2))
+            .Times(Exactly(2));                 // starting + 2 execve's = 3 signals
+    EXPECT_CALL(fifoCallbacks, onExec(_))
+            .Times(Exactly(1));                 // exec to tracee_basic and then to /bin/date
+
+    EXPECT_CALL(fifoCallbacks,
+                onSignal(_, SIGUSR1))
+            .Times(AtLeast(2));                 // we called mmap twice, any additional mmap
+                                                // calls will cause sending SIGUSR1
+    EXPECT_CALL(fifoCallbacks,
+                onExit(_,_))
+            .Times(Exactly(2));
+    */
+//    EXPECT_CALL(fifoCallbacks,
+//                onSyscallExitT(_, SyscallEq<Ptrace::SyscallExitAction>(Syscall("mmap"))))
+//            .Times(AtLeast(2));
+
+    //ptrace.setLoggerVerbosity(Logger::Verbosity::OFF);
+
+    ptrace.startTracing();
+
+    SUCCEED();
+}
+
+
+
+
 

@@ -51,11 +51,12 @@ void setUserSignals(){
 */
 __attribute__((constructor)) void tracee_begin(){
     printf("tracee begin %d\n", getpid());
-    fifo_fd = 0; // clean variables from parent's values
+    fifo_fd = 0;
     fifo_path[0] = '\0';
 
     assert(fifo_fd == 0);
     setUserSignals();
+
     TRACEE_SAFE_SYSCALL(kill(getpid(), 0));
 }
 
@@ -77,11 +78,18 @@ __attribute__((destructor)) void tracee_end(){
  * */
 
 void allocate_handler(int address){
-    // TODO: implement
+    static int time = 0;
     char message_buff[64];
-    printf("allocate_handler: %d\n", getpid());
-    TRACEE_SAFE_SYSCALL(read(fifo_fd, message_buff, 64));
-    printf("allocate_handler message: %s\n", message_buff);
+    if(time > 0)
+        assert(false);
+    printf("allocate_handler: %d\n", time);
+    if(fifo_fd > 0) {
+        TRACEE_SAFE_SYSCALL(read(fifo_fd, message_buff, 64));
+        printf("time %d allocate_handler message: %s\n", time++, message_buff);
+    } else {
+        printf("file isn't open: %s\n", message_buff);
+        assert(false);
+    }
 }
 
 /*
@@ -99,10 +107,30 @@ void create_fifo(int address){
     strcpy(fifo_path, "/tmp/ptrace_fifo/");
     strcat(fifo_path, pid_str);
 
+    // dbg
+    static int time = 0;
+    printf("CREATE FIFO fd = %d time %d\n", fifo_fd, time++);
+
+    if(time == 0){
+//        close(1);
+//        int out_fd = open("/tmp/ptrace_fifo/tracee_log.txt", O_WRONLY | O_CREAT);
+//        dprintf(1, "CREATE FIFO OUT %d\n", out_fd);
+//        assert(out_fd == 1);
+//        time++;
+    }
+    // dbg
+
     fifo_exists = access(fifo_path, F_OK);
-    if(fifo_exists < 0 && errno == ENOENT) { // if FIFO has not been created yet for the process, create it
+    if(fifo_exists < 0 && errno == ENOENT) {            // if FIFO has not been created yet for the process, create it
+        printf("%d FIFO doesnt exists\n", getpid());
         TRACEE_SAFE_SYSCALL(mkfifo(fifo_path, 0666));
-        fifo_fd = TRACEE_SAFE_SYSCALL(open(fifo_path, O_RDWR | O_NONBLOCK));
+        //fifo_fd = TRACEE_SAFE_SYSCALL(open(fifo_path, O_RDWR | O_NONBLOCK));
         printf("create fifo: pid %d fifo_id=%d\n", getpid(), fifo_fd);
+    }
+    if(fifo_fd == 0){
+        int close_res = close(3);
+        assert((close_res == -1 && errno == EBADF) || close_res == 0);
+        fifo_fd = TRACEE_SAFE_SYSCALL(open(fifo_path, O_RDWR | O_NONBLOCK));
+        printf("create fifo fifo is now open: pid %d fifo_id=%d\n", getpid(), fifo_fd);
     }
 }

@@ -89,7 +89,6 @@ void Ptrace::startTracing() {
             assert(WIFSTOPPED(status));
             int signal_num = WSTOPSIG(status);
             //logger_ << "\nDBG : " << status << " " << strsignal(signal_num) << logger_.endl;
-            // FIXME: need to find a way to catch ptrace events
             if (isSyscallStop(signal_num))
                 handleSyscalledProcess(status, signal_num, process_iter);
              else
@@ -198,17 +197,18 @@ void Ptrace::handleSyscalledProcess(int status, int signal_num, ProcessItr waite
         process.setReturningFromSignal(false);
     }
 
-
-
-
     if(!process.isInsideKernel() && getSyscall(process) == Syscall("kill")){
         int kill_sig_num = static_cast<int>(SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER,
                                                                          waited_pid,
                                                                          REG_OFFSET(rsi))));
-        if(kill_sig_num == 0)
-            SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, SIGUSR2)); // send SIGUSER2 to force tracee to create fifo with his pid
-    } else
-        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, signal_to_inject));
+        if(kill_sig_num == 0) {
+//            SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL,
+//                                SIGUSR2)); // send SIGUSER2 to force tracee to create fifo with his pid
+            process.setHasUserSignalHandlers(true);
+            signal_to_inject = SIGUSR2;
+        }
+    }
+    SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, signal_to_inject));
 }
 
 void Ptrace::handleSignaledProcess(int status, int signal_num, ProcessItr waited_process) {
@@ -233,6 +233,7 @@ void Ptrace::handleSignaledProcess(int status, int signal_num, ProcessItr waited
 
 void Ptrace::handleTrappedProcess(int status, int signal_num, Ptrace::ProcessItr waited_process) {
     pid_t waited_pid = waited_process->first;
+    TracedProcess& process = waited_process->second;
     assert(signal_num == SIGTRAP);
 
     logger_ << "trapped: ";
@@ -241,6 +242,7 @@ void Ptrace::handleTrappedProcess(int status, int signal_num, Ptrace::ProcessItr
         logger_ << "fork" << logger_.endl;
     }
     else if(IS_EVENT(status, PTRACE_EVENT_EXEC)) {
+        process.setHasUserSignalHandlers(false);
         event_callbacks_.onExec(waited_pid);
         logger_ << "exec" << logger_.endl;
     }
