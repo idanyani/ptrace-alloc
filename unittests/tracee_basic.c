@@ -22,7 +22,7 @@ int main(){
                                        -1,
                                        0);
     printf("%d\n", address);
-    //execv("/bin/date", args);
+    execv("/bin/date", args);
 
     return 0;
 }

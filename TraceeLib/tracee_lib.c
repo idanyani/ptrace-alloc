@@ -107,18 +107,7 @@ void create_fifo(int address){
     strcpy(fifo_path, "/tmp/ptrace_fifo/");
     strcat(fifo_path, pid_str);
 
-    // dbg
-    static int time = 0;
-    printf("CREATE FIFO fd = %d time %d\n", fifo_fd, time++);
-
-    if(time == 0){
-//        close(1);
-//        int out_fd = open("/tmp/ptrace_fifo/tracee_log.txt", O_WRONLY | O_CREAT);
-//        dprintf(1, "CREATE FIFO OUT %d\n", out_fd);
-//        assert(out_fd == 1);
-//        time++;
-    }
-    // dbg
+    printf("CREATE FIFO fd = %d\n", fifo_fd);
 
     fifo_exists = access(fifo_path, F_OK);
     if(fifo_exists < 0 && errno == ENOENT) {            // if FIFO has not been created yet for the process, create it
@@ -128,7 +117,7 @@ void create_fifo(int address){
         printf("create fifo: pid %d fifo_id=%d\n", getpid(), fifo_fd);
     }
     if(fifo_fd == 0){
-        int close_res = close(3);
+        int close_res = close(3); // FIXME
         assert((close_res == -1 && errno == EBADF) || close_res == 0);
         fifo_fd = TRACEE_SAFE_SYSCALL(open(fifo_path, O_RDWR | O_NONBLOCK));
         printf("create fifo fifo is now open: pid %d fifo_id=%d\n", getpid(), fifo_fd);

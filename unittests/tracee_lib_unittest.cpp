@@ -167,7 +167,7 @@ TEST(TraceeLibTest, SendMessageOnMmapAndExecveTest){
     char* args[] = {const_cast<char*>("./tracee_fifo"), const_cast<char*>("1"), nullptr};
     Ptrace ptrace(args[0], args, fifoCallbacks);
 
-    /*
+
     EXPECT_CALL(fifoCallbacks,
                 onStart)
             .Times(Exactly(1));         // 2 tracees
@@ -182,9 +182,9 @@ TEST(TraceeLibTest, SendMessageOnMmapAndExecveTest){
 
     EXPECT_CALL(fifoCallbacks,
                 onSignal(_, SIGUSR2))
-            .Times(Exactly(2));                 // starting + 2 execve's = 3 signals
+            .Times(Exactly(3));                 // starting + 2 execve's = 3 signals
     EXPECT_CALL(fifoCallbacks, onExec(_))
-            .Times(Exactly(1));                 // exec to tracee_basic and then to /bin/date
+            .Times(Exactly(2));                 // exec to tracee_basic and then to /bin/date
 
     EXPECT_CALL(fifoCallbacks,
                 onSignal(_, SIGUSR1))
@@ -192,8 +192,8 @@ TEST(TraceeLibTest, SendMessageOnMmapAndExecveTest){
                                                 // calls will cause sending SIGUSR1
     EXPECT_CALL(fifoCallbacks,
                 onExit(_,_))
-            .Times(Exactly(2));
-    */
+            .Times(Exactly(1));
+
 //    EXPECT_CALL(fifoCallbacks,
 //                onSyscallExitT(_, SyscallEq<Ptrace::SyscallExitAction>(Syscall("mmap"))))
 //            .Times(AtLeast(2));
