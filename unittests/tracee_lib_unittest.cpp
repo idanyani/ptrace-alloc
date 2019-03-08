@@ -23,7 +23,7 @@ TEST(TraceeLibTest, SendSiguser2Test){
     EXPECT_CALL(mock_event_callbacks,
                 onSignal(_, SIGUSR2)) // After tracing kill(get_pid(), 0) in tracee lib constructor,
             .Times(Exactly(2));         // tracer sends SIGUSR2 to the tracee. Since after execv, the constructor
-                                        // is called, SIGUS@ will be sent once again
+                                        // is called, SIGUSR2 will be sent once again
     EXPECT_CALL(mock_event_callbacks,
                 onExec(_)) // When calling execv, tracee gets SIGTRAP because of PTRACE_O_TRACEEXEC option
             .Times(Exactly(1));

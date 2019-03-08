@@ -6,15 +6,13 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <sys/mman.h>
+#include <stdlib.h>
 
 
 int main(){
     pid_t child;
     char* args[] = {"date", NULL};
-    // DBG
-    char buffer[256];
-    getcwd(buffer, 256);
-    // DBG
+
     intptr_t address = (intptr_t) mmap(NULL,
                                        4,
                                        PROT_READ | PROT_WRITE,
