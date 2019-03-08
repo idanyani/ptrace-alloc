@@ -205,6 +205,34 @@ TEST(TraceeLibTest, SendMessageOnMmapAndExecveTest){
     SUCCEED();
 }
 
+TEST(TraceeLibTest, ExecSanityTest){ // FIXME: delete?
+    char* args[] = {const_cast<char*>("./tracee_basic"), nullptr};
+    MockEventCallbacks mock_event_callbacks;
+
+    std::unique_ptr<Ptrace> p_ptrace = initPtrace(args, mock_event_callbacks);
+
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscallEnterT(_,_))
+            .Times(AnyNumber());
+
+    EXPECT_CALL(mock_event_callbacks,
+                onSyscallExitT(_,_))
+            .Times(AnyNumber());
+
+    p_ptrace->startTracing();
+
+    SUCCEED();
+}
+
+TEST(TraceeLibTest, SignalHandlersSurviveAfterExecveTest){
+    char* args[] = {const_cast<char*>("./tracee_pingpong"), const_cast<char*>("2"), nullptr};
+    SendSignalOnMmapCallback mock_event_callbacks;
+
+    std::unique_ptr<Ptrace> p_ptrace = initPtrace(args, mock_event_callbacks);
+    p_ptrace->startTracing();
+
+    SUCCEED();
+}
 
 
 

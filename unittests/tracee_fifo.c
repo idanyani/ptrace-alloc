@@ -21,6 +21,7 @@ int main(int argc, char **argv){
 
     printf("%d\n", address);
     if(argc > 1 && !strcmp(argv[1], "1")) {
+        printf("BEFORE EXEC\n");
         execv("./tracee_basic", args);
     }
 

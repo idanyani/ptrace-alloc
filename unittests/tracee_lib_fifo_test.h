@@ -20,6 +20,10 @@ class SendMessageCallback : public MockEventCallbacks {
     std::string message_sys_call_name;
 };
 
+class SendSignalOnMmapCallback : public MockEventCallbacks {
+  public:
+    virtual int onSyscallExit (pid_t, Ptrace::SyscallExitAction&)  override;
+};
 
 
 #endif //PTRACE_ALLOC_TRACEE_LIB_FIFO_TEST_H

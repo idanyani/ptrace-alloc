@@ -16,6 +16,7 @@
 
 void allocate_handler(int address);
 void create_fifo(int address);
+//extern void traceeUserSignallAction(); // FIXME
 
 int traceeHandleSyscallReturnValue(int syscall_return_value, unsigned int code_line) {
     if (syscall_return_value < 0) {
@@ -78,10 +79,9 @@ __attribute__((destructor)) void tracee_end(){
  * */
 
 void allocate_handler(int address){
-    static int time = 0;
-    char message_buff[64];
-    if(time > 0)
-        assert(false);
+
+    //traceeUserSignallAction();
+    /*
     printf("allocate_handler: %d\n", time);
     if(fifo_fd > 0) {
         TRACEE_SAFE_SYSCALL(read(fifo_fd, message_buff, 64));
@@ -90,6 +90,7 @@ void allocate_handler(int address){
         printf("file isn't open: %s\n", message_buff);
         assert(false);
     }
+     */
 }
 
 /*

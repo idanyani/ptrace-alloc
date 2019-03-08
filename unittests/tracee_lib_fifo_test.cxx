@@ -54,3 +54,17 @@ int SendMessageCallback::onSyscallExit(pid_t pid, Ptrace::SyscallExitAction& sys
     }                                                                   // to be injected to tracee
     return 0;
 }
+
+int SendSignalOnMmapCallback::onSyscallExit(pid_t pid, Ptrace::SyscallExitAction& syscall_action) {
+
+    const TracedProcess& tracee = syscall_action.getTracee();
+
+    if(tracee.returningFromSignal()){
+        return 0;
+    }
+    else if(tracee.hasUserSignalHandlers() && syscall_action.getSyscall().toString() == std::string("mmap")) {
+        return SIGUSR1;
+    }
+
+    return 0;
+}
