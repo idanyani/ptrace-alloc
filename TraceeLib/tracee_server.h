@@ -16,15 +16,18 @@
     //void serveRequest(Command command_to_execute, int command_argument); // FIXME: use serveCommand that accepts parameters
     void serveRequest();
 
-    int getFifoFd() const;
-    const std::string& getFifoPath() const;
+    pid_t getPid() const;
+    //int getFifoFd() const;
+    //const std::string& getFifoPath() const;
 
-    void setFifoFd(int fifo_fd);
-    void setFifoPath(const std::string& fifo_path);
+    void setPid(pid_t pid);
+    //void setFifoFd(int fifo_fd);
+    //void setFifoPath(const std::string& fifo_path);
 
   private:
-    int fifo_fd_;
-    std::string fifo_path_;
+     pid_t tracee_pid_;
+     //int fifo_fd_;
+     //std::string fifo_path_;
 
 };
 

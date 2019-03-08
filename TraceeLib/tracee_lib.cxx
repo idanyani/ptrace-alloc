@@ -16,26 +16,24 @@
 #include "tracee_lib.h"
 #include "tracee_server.h"
 
-void allocate_handler(int address);
-void create_fifo(int address);
+void allocate_handler(int signal_handler_arg);
+void create_fifo(int signal_handler_arg);
 
-TraceeServer *tracee_server;
+TraceeServer tracee_server;
 
 int traceeHandleSyscallReturnValue(int syscall_return_value, unsigned int code_line) {
     if (syscall_return_value < 0) {
-        printf("system call failed at line %d with error: %s\n", code_line, strerror(errno));
-        // FIXME: throw exception?
-        //std::cout << "system call failed at line" << code_line <<  " with error: " <<  strerror(errno) << std::endl;
+        //printf("system call failed at line %d with error: %s\n", code_line, strerror(errno));
+        // FIXME: throw an exception?
+        throw std::system_error(errno,
+                                std::system_category(),
+                                std::string("Failed on line:") + std::to_string(code_line));
     }
     return syscall_return_value;
 }
 
 #define TRACEE_SAFE_SYSCALL(syscall) \
 ({int _ret_val = traceeHandleSyscallReturnValue(syscall, __LINE__); _ret_val;})
-
-
-char fifo_path[80];
-int fifo_fd;
 
 
 void setUserSignals(){
@@ -59,52 +57,39 @@ void setUserSignals(){
 */
 __attribute__((constructor)) void tracee_begin(){
 
-    /*
-    printf("tracee begin %d\n", getpid());
-    fifo_fd = 0;
-    fifo_path[0] = '\0';
-
-    assert(fifo_fd == 0);
-    */
-
-    tracee_server = new TraceeServer();
-
-    pid_t tracee_pid = getpid();
-
-//    std::cout << "Tracee lib constructor called " << tracee_pid << std::endl;
-
     std::string fifo_path;
     std::stringstream fifo_path_stream;
 
-    fifo_path_stream << "/tmp/ptrace_fifo/" << tracee_pid;
-    tracee_server->setFifoPath(fifo_path_stream.str());  // fifo path is constant per tracee,
-                                                        // we can set this filed for server once in the constructor
+    pid_t tracee_pid = getpid();
+    printf("Tracee lib constructor called for pid=%d\n", tracee_pid);
 
+    fifo_path_stream << "/tmp/ptrace_fifo/" << tracee_pid;
+
+    tracee_server.setPid(tracee_pid);
+    tracee_server.setFifoPath(fifo_path_stream.str());  // fifo path is constant per tracee,
+                                                        // we can set this filed for server once in the constructor
+    printf("PATH DBG %s\n", tracee_server.getFifoPath().c_str());
     setUserSignals();
 
     TRACEE_SAFE_SYSCALL(kill(tracee_pid, 0));
 }
 
 __attribute__((destructor)) void tracee_end(){
-    printf("tracee_end: %d\n", getpid());
- //   int fifo_exists = TRACEE_SAFE_SYSCALL(access(fifo_path, F_OK));
- //   /*
-    int fifo_fd = tracee_server->getFifoFd();
-    const char* fifo_path_ptr = tracee_server->getFifoPath().c_str();
 
+    printf("Tracee lib destructor called for pid=%d\n", tracee_server.getPid());
+
+    int fifo_fd = tracee_server.getFifoFd();
+    const char* fifo_path_ptr = tracee_server.getFifoPath().c_str();
+
+    printf("PATH DBG access%s", fifo_path_ptr);
     int fifo_exists = TRACEE_SAFE_SYSCALL(access(fifo_path_ptr, F_OK));
- //   */
 
     if(fifo_exists == 0) {
         struct stat fifo_stat;
         TRACEE_SAFE_SYSCALL(fstat(fifo_fd, &fifo_stat));
         TRACEE_SAFE_SYSCALL(close(fifo_fd));
-        TRACEE_SAFE_SYSCALL(unlink(fifo_path));
+        TRACEE_SAFE_SYSCALL(unlink(fifo_path_ptr));
     }
-
-    TraceeServer *tmp_ptr = tracee_server;
-    tracee_server = nullptr;
-    delete tmp_ptr;
 }
 /*
  * siguser1_handler
@@ -112,7 +97,7 @@ __attribute__((destructor)) void tracee_end(){
  * allocates memory
  * */
 
-void allocate_handler(int address){
+void allocate_handler(int signal_handler_arg){
 
     //traceeUserSignallAction();
     /*
@@ -125,7 +110,7 @@ void allocate_handler(int address){
         assert(false);
     }
      */
-    tracee_server->serveRequest();
+    tracee_server.serveRequest();
 }
 
 /*
@@ -135,50 +120,28 @@ void allocate_handler(int address){
  * if that case, the handler is inherited from it's parent
  * */
 
-void create_fifo(int address){
-    /*
-    char pid_str[20];
+void create_fifo(int signal_handler_arg){
+
     int fifo_exists;
-    sprintf(pid_str, "%d", getpid());
-
-    strcpy(fifo_path, "/tmp/ptrace_fifo/");
-    strcat(fifo_path, pid_str);
-
-    printf("CREATE FIFO fd = %d\n", fifo_fd);
-
-    fifo_exists = access(fifo_path, F_OK);
-    if(fifo_exists < 0 && errno == ENOENT) {            // if FIFO has not been created yet for the process, create it
-        printf("%d FIFO doesnt exists\n", getpid());
-        TRACEE_SAFE_SYSCALL(mkfifo(fifo_path, 0666));
-        //fifo_fd = TRACEE_SAFE_SYSCALL(open(fifo_path, O_RDWR | O_NONBLOCK));
-        printf("create fifo: pid %d fifo_id=%d\n", getpid(), fifo_fd);
-    }
-    if(fifo_fd == 0){
-        int close_res = close(3); // FIXME
-        assert((close_res == -1 && errno == EBADF) || close_res == 0);
-        fifo_fd = TRACEE_SAFE_SYSCALL(open(fifo_path, O_RDWR | O_NONBLOCK));
-        printf("create fifo fifo is now open: pid %d fifo_id=%d\n", getpid(), fifo_fd);
-    }
-    */
-
-    ///*
-    int fifo_exists;
-    int fifo_fd = tracee_server->getFifoFd();
-    const char* fifo_path_ptr = tracee_server->getFifoPath().c_str();
+    int fifo_fd = tracee_server.getFifoFd();
+    const char* fifo_path_ptr = tracee_server.getFifoPath().c_str();
 
     fifo_exists = access(fifo_path_ptr, F_OK);
 
     if(fifo_exists < 0 && errno == ENOENT) {            // if FIFO has not been created yet for the process, create it
         TRACEE_SAFE_SYSCALL(mkfifo(fifo_path_ptr, 0666));
-        std::cout << "FIFO for process " << getpid() << "doesn't exist, creating one" << std::endl;
+        printf("FIFO for pid=%d has not been created yet, creating a new FIFO at path %s\n",
+               tracee_server.getPid(),
+               fifo_path_ptr);
     }
-    if( fifo_fd == 0 ){                         // assume that we never open FIFO at fd = 0
-        //int close_res = close(3);             // Idan said it's okay not to close FIFO when execv
+    if( fifo_fd == 0 ){                                 // assume that we never open FIFO at fd = 0
+        //int close_res = close(3);                     // Idan said it's okay not to close FIFO when execv
 
         fifo_fd = TRACEE_SAFE_SYSCALL(open(fifo_path_ptr, O_RDWR | O_NONBLOCK));
-        tracee_server->setFifoFd(fifo_fd);
-        std::cout << "FIFO is now opened for process " << getpid() << " at " << fifo_fd << std::endl;
+        tracee_server.setFifoFd(fifo_fd);
+        printf("FIFO is now opened for pid=%d, file descriptors's index is %d\n",
+               tracee_server.getPid(),
+               fifo_fd);
     }
-    // */
 }
 
