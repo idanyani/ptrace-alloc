@@ -17,17 +17,17 @@
     void serveRequest();
 
     pid_t getPid() const;
-    //int getFifoFd() const;
-    //const std::string& getFifoPath() const;
+    int getFifoFd() const;
+    const std::string& getFifoPath() const;
 
     void setPid(pid_t pid);
-    //void setFifoFd(int fifo_fd);
-    //void setFifoPath(const std::string& fifo_path);
+    void setFifoFd(int fifo_fd);
+    void setFifoPath(const std::string& fifo_path);
 
   private:
      pid_t tracee_pid_;
-     //int fifo_fd_;
-     //std::string fifo_path_;
+     int fifo_fd_;
+     std::string fifo_path_;
 
 };
 

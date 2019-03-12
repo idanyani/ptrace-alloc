@@ -28,6 +28,7 @@ int traceeHandleSyscallReturnValue(int syscall_return_value, unsigned int code_l
         throw std::system_error(errno,
                                 std::system_category(),
                                 std::string(std::to_string(getpid()) + " Failed on line:") + std::to_string(code_line));
+
     }
     return syscall_return_value;
 }
@@ -70,8 +71,11 @@ __attribute__((destructor)) void tracee_end(){
 
     printf("Tracee lib destructor called for pid=%d\n", tracee_server.getPid());
 
-    int fifo_exists = access(fifo_path, F_OK);          // we don't want to throw exception in this case
-                                                        // because tracer loads this library too but didn't create fifo
+    int fifo_fd = tracee_server.getFifoFd();
+    const char* fifo_path_ptr = tracee_server.getFifoPath().c_str();
+
+    int fifo_exists = access(fifo_path_ptr, F_OK);
+
     if(fifo_exists == 0) {
         struct stat fifo_stat;
         TRACEE_SAFE_SYSCALL(fstat(fifo_fd, &fifo_stat));

@@ -21,6 +21,14 @@ TEST(TraceeLibTest, SendSiguser2Test){
             .Times(Exactly(1));
 
     EXPECT_CALL(mock_event_callbacks,
+                onSignal(_, SIGABRT))
+            .Times(Exactly(0));
+
+    EXPECT_CALL(mock_event_callbacks,
+                onSignal(_, SIGSEGV))
+            .Times(Exactly(0));
+
+    EXPECT_CALL(mock_event_callbacks,
                 onSignal(_, SIGUSR2)) // After tracing kill(get_pid(), 0) in tracee lib constructor,
             .Times(Exactly(2));         // tracer sends SIGUSR2 to the tracee. Since after execv, the constructor
                                         // is called, SIGUSR2 will be sent once again
@@ -53,6 +61,14 @@ TEST(TraceeLibTest, ForkTest){
             .Times(Exactly(2));         // 2 tracees
 
     EXPECT_CALL(mock_event_callbacks,
+                onSignal(_, SIGABRT))
+            .Times(Exactly(0));
+
+    EXPECT_CALL(mock_event_callbacks,
+                onSignal(_, SIGSEGV))
+            .Times(Exactly(0));
+
+    EXPECT_CALL(mock_event_callbacks,
                 onSyscallEnterT(_,_))
             .Times(AnyNumber());
     EXPECT_CALL(mock_event_callbacks,
@@ -82,7 +98,7 @@ TEST(TraceeLibTest, ForkTest){
 
 }
 
-TEST(TraceeLibTest, FifoBasicTest){
+TEST(TraceeLibTest, FifoBasicTest){                     // FIXME: make TraceeServer to accepr fifo messages
 //    MockEventCallbacks mock_event_callbacks;
     SendMessageCallback fifoCallbacks(std::string("getcwd"));
 
@@ -94,6 +110,14 @@ TEST(TraceeLibTest, FifoBasicTest){
     EXPECT_CALL(fifoCallbacks,
                 onStart)
             .Times(Exactly(1));         // 2 tracees
+
+    EXPECT_CALL(fifoCallbacks,
+                onSignal(_, SIGABRT))
+            .Times(Exactly(0));
+
+    EXPECT_CALL(fifoCallbacks,
+                onSignal(_, SIGSEGV))
+            .Times(Exactly(0));
 
     EXPECT_CALL(fifoCallbacks,
                 onSyscallEnterT(_,_))
@@ -120,7 +144,6 @@ TEST(TraceeLibTest, FifoBasicTest){
   */
     ptrace.startTracing();
 
-    SUCCEED();
 }
 
 TEST(TraceeLibTest, SendMessageOnMmapTest){
@@ -133,6 +156,14 @@ TEST(TraceeLibTest, SendMessageOnMmapTest){
     EXPECT_CALL(fifoCallbacks,
                 onStart)
             .Times(Exactly(1));         // 2 tracees
+
+    EXPECT_CALL(fifoCallbacks,
+                onSignal(_, SIGABRT))
+            .Times(Exactly(0));
+
+    EXPECT_CALL(fifoCallbacks,
+                onSignal(_, SIGSEGV))
+            .Times(Exactly(0));
 
     EXPECT_CALL(fifoCallbacks,
                 onSyscallEnterT(_,_))
@@ -157,10 +188,9 @@ TEST(TraceeLibTest, SendMessageOnMmapTest){
 
     ptrace.startTracing();
 
-    SUCCEED();
 }
 
-TEST(TraceeLibTest, SendMessageOnMmapAndExecveTest){
+TEST(TraceeLibTest, SendMessageOnMmapAndExecveTest){ // FIXME: delete this test
 //    MockEventCallbacks mock_event_callbacks;
     SendMessageCallback fifoCallbacks(std::string("mmap"));
 
@@ -171,6 +201,14 @@ TEST(TraceeLibTest, SendMessageOnMmapAndExecveTest){
     EXPECT_CALL(fifoCallbacks,
                 onStart)
             .Times(Exactly(1));         // 2 tracees
+
+    EXPECT_CALL(fifoCallbacks,
+                onSignal(_, SIGABRT))
+            .Times(Exactly(0));
+
+    EXPECT_CALL(fifoCallbacks,
+                onSignal(_, SIGSEGV))
+            .Times(Exactly(0));
 
     EXPECT_CALL(fifoCallbacks,
                 onSyscallEnterT(_,_))
@@ -202,14 +240,21 @@ TEST(TraceeLibTest, SendMessageOnMmapAndExecveTest){
 
     ptrace.startTracing();
 
-    SUCCEED();
 }
 
-TEST(TraceeLibTest, ExecSanityTest){ // FIXME: delete?
+TEST(TraceeLibTest, ExecSanityTest){ // FIXME: delete
     char* args[] = {const_cast<char*>("./tracee_basic"), nullptr};
     MockEventCallbacks mock_event_callbacks;
 
     std::unique_ptr<Ptrace> p_ptrace = initPtrace(args, mock_event_callbacks);
+
+    EXPECT_CALL(mock_event_callbacks,
+                onSignal(_, SIGABRT))
+            .Times(Exactly(0));
+
+    EXPECT_CALL(mock_event_callbacks,
+                onSignal(_, SIGSEGV))
+            .Times(Exactly(0));
 
     EXPECT_CALL(mock_event_callbacks,
                 onSyscallEnterT(_,_))
@@ -221,17 +266,32 @@ TEST(TraceeLibTest, ExecSanityTest){ // FIXME: delete?
 
     p_ptrace->startTracing();
 
-    SUCCEED();
 }
 
-TEST(TraceeLibTest, SignalHandlersSurviveAfterExecveTest){
+TEST(TraceeLibTest, SignalHandlersSurviveAfterExecveTest){          // FIXME make this taste use TraceeServer class
     char* args[] = {const_cast<char*>("./tracee_pingpong"), const_cast<char*>("2"), nullptr};
     SendSignalOnMmapCallback mock_event_callbacks;
 
     std::unique_ptr<Ptrace> p_ptrace = initPtrace(args, mock_event_callbacks);
+
+    EXPECT_CALL(mock_event_callbacks,
+                onSignal(_, SIGABRT))
+            .Times(Exactly(0));
+
+    EXPECT_CALL(mock_event_callbacks,
+                onSignal(_, SIGSEGV))
+            .Times(Exactly(0));
+
+    EXPECT_CALL(mock_event_callbacks,
+                onSignal(_, SIGUSR1))
+            .Times(AnyNumber());
+
+    EXPECT_CALL(mock_event_callbacks,
+                onSignal(_, SIGUSR2))
+            .Times(AnyNumber());
+
     p_ptrace->startTracing();
 
-    SUCCEED();
 }
 
 
