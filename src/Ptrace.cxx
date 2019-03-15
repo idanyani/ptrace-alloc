@@ -177,25 +177,27 @@ void Ptrace::handleSyscalledProcess(int status, int signal_num, ProcessItr waite
     if(!process.returningFromSignal()) {
         logger_ << "syscalled" << " with \"" << getSyscall(process)
                 << "\"; " << (process.isInsideKernel() ? "Enter" : "Exit") << Logger::endl;
+
+        if(startingReturnFromSignal(process)) {
+            process.setReturningFromSignal(true);
+        }
+
+        if (process.isInsideKernel()) {
+            SyscallEnterAction action(*this, process);
+            event_callbacks_.onSyscallEnter(waited_pid, action);
+        } else {
+            SyscallExitAction action(*this, process);
+            event_callbacks_.onSyscallExit(waited_pid, action);
+        }
     } else {
         logger_ << "returned from signal" << Logger::endl;
-    }
 
-    if(startingReturnFromSignal(process)) {
-        process.setReturningFromSignal(true);
-    } else if(finishingReturnFromSignal(process)){
-        assert(process.returningFromSignal());
-        process.setReturningFromSignal(false);
+        if(finishingReturnFromSignal(process)){
+            assert(process.returningFromSignal());
+            process.setReturningFromSignal(false);
+        }
     }
-
-    if (process.isInsideKernel()) {
-        SyscallEnterAction action(*this, process);
-        event_callbacks_.onSyscallEnter(waited_pid, action);
-    } else {
-        SyscallExitAction action(*this, process);
-        event_callbacks_.onSyscallExit(waited_pid, action);
-    }
-
+    //logger_ << "Is kernel " << process.isInsideKernel() << " returning from signal " << process.returningFromSignal() << logger_.endl;
 
 //    if(!process.isInsideKernel() && getSyscall(process) == Syscall("kill")){
 //        int kill_sig_num = static_cast<int>(SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER,

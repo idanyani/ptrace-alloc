@@ -10,6 +10,7 @@ void TraceeLibMockEventCallbacks::onSyscallEnter(pid_t pid, Ptrace::SyscallEnter
 }
 
 int TraceeLibMockEventCallbacks::onSyscallExitInner(pid_t pid, Ptrace::SyscallExitAction& action) {
+
     onSyscallExitT(pid, action);
     return 0;
 }

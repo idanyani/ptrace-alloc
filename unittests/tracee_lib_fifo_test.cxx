@@ -28,8 +28,6 @@ int SendMessageCallback::onSyscallExitInner(pid_t pid, Ptrace::SyscallExitAction
     std::stringstream message;
     const TracedProcess& tracee = syscall_action.getTracee();
 
-    std::cout << "MMAP callback called " << tracee.hasUserSignalHandlers()  << std::endl;
-
     if(tracee.returningFromSignal()){
         return 0;
     }
@@ -58,15 +56,15 @@ int SendMessageCallback::onSyscallExitInner(pid_t pid, Ptrace::SyscallExitAction
     return 0;
 }
 
-void SendSignalOnMmapCallback::onSyscallExit(pid_t pid, Ptrace::SyscallExitAction& syscall_action) {
-
-    const TracedProcess& tracee = syscall_action.getTracee();
-
-    if(tracee.returningFromSignal()){
-        return;
-    }
-    else if(tracee.hasUserSignalHandlers() && syscall_action.getSyscall().toString() == std::string("mmap")) {
-        //return SIGUSR1;
-        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, pid, NULL, SIGUSR1));
-    }
-}
+//void SendSignalOnMmapCallback::onSyscallExit(pid_t pid, Ptrace::SyscallExitAction& syscall_action) {
+//
+//    const TracedProcess& tracee = syscall_action.getTracee();
+//
+//    if(tracee.returningFromSignal()){
+//        return;
+//    }
+//    else if(tracee.hasUserSignalHandlers() && syscall_action.getSyscall().toString() == std::string("mmap")) {
+//        //return SIGUSR1;
+//        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, pid, NULL, SIGUSR1));
+//    }
+//}

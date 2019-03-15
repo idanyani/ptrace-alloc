@@ -95,17 +95,18 @@ __attribute__((destructor)) void tracee_end(){
 void allocate_handler(int signal_handler_arg){
 
     //traceeUserSignallAction();
-    /*
-    printf("allocate_handler: %d\n", time);
+    char message_buff[64];
+
+    printf("allocate_handler\n");
     if(fifo_fd > 0) {
         TRACEE_SAFE_SYSCALL(read(fifo_fd, message_buff, 64));
-        printf("time %d allocate_handler message: %s\n", time++, message_buff);
+        printf("allocate_handler message: %s\n", message_buff);
     } else {
         printf("file isn't open: %s\n", message_buff);
         assert(false);
     }
-     */
-    tracee_server.serveRequest();
+
+    //tracee_server.serveRequest();
 }
 
 /*

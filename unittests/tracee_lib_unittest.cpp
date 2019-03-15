@@ -101,49 +101,52 @@ TEST(TraceeLibTest, ForkTest){
 
 TEST(TraceeLibTest, FifoBasicTest){                     // FIXME: make TraceeServer to accepr fifo messages
 //    MockEventCallbacks mock_event_callbacks;
-    SendMessageCallback fifoCallbacks(std::string("getcwd"));
+    SendMessageCallback send_message_callbacks(std::string("getcwd"));
 
     char* args[] = {const_cast<char*>("./tracee_fifo"), const_cast<char*>("0"), nullptr};
-    Ptrace ptrace(args[0], args, fifoCallbacks);
+    std::unique_ptr<Ptrace> p_ptrace = initPtrace(args, send_message_callbacks);
 
-    ptrace.setLoggerVerbosity(Logger::Verbosity::OFF);
+    //p_ptrace->setLoggerVerbosity(Logger::Verbosity::OFF);
 
-    EXPECT_CALL(fifoCallbacks,
+
+    EXPECT_CALL(send_message_callbacks,
                 onStart)
             .Times(Exactly(1));         // 2 tracees
 
-    EXPECT_CALL(fifoCallbacks,
+    EXPECT_CALL(send_message_callbacks,
                 onSignal(_, SIGABRT))
             .Times(Exactly(0));
 
-    EXPECT_CALL(fifoCallbacks,
+    EXPECT_CALL(send_message_callbacks,
                 onSignal(_, SIGSEGV))
             .Times(Exactly(0));
 
-    EXPECT_CALL(fifoCallbacks,
+    EXPECT_CALL(send_message_callbacks,
                 onSyscallEnterT(_,_))
             .Times(AnyNumber());
 
-    EXPECT_CALL(fifoCallbacks,
+    EXPECT_CALL(send_message_callbacks,
                 onSyscallExitT(_,_))
             .Times(AnyNumber());
 
-    EXPECT_CALL(fifoCallbacks,
+    EXPECT_CALL(send_message_callbacks,
                 onSignal(_, SIGUSR2))
             .Times(Exactly(1));
 
-    EXPECT_CALL(fifoCallbacks,
+    EXPECT_CALL(send_message_callbacks,
                 onSignal(_, SIGUSR1))
             .Times(Exactly(1));
-    EXPECT_CALL(fifoCallbacks,
+    EXPECT_CALL(send_message_callbacks,
                 onExit(_,_))
             .Times(Exactly(1));
-/*
-    EXPECT_CALL(fifoCallbacks,
-                onSyscallExitT(_, Syscall("read")))
-            .Times(AtLeast(1));
-  */
-    ptrace.startTracing();
+
+
+//    EXPECT_CALL(send_message_callbacks,
+//                onSyscallExitT(_, SyscallEq<Ptrace::SyscallEnterAction>(Syscall("read"))))
+//            .Times(AtLeast(1));
+
+    p_ptrace->startTracing();
+
 
 }
 
