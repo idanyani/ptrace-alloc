@@ -29,7 +29,6 @@ target_link_libraries(tracee_pingpong tracee_l)
 add_dependencies(tracee_lib_unittests tracee_basic tracee_fork tracee_fifo tracee_pingpong)
 
 
-
 target_link_libraries(tracee_lib_unittests tracer gtest gtest_main gmock)
 add_test(tracee_lib_unittests tracee_lib_unittests)
 

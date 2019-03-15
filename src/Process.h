@@ -38,7 +38,7 @@ class TracedProcess {
         return has_user_uignal_handlers_;
     }
 
-    void setHasUserSignalHandlers(bool has_user_signal_handlers) {
+    void setHasUserSignalHandlers(bool has_user_signal_handlers) const{
         has_user_uignal_handlers_ = has_user_signal_handlers;
     }
 
@@ -46,7 +46,7 @@ class TracedProcess {
     pid_t pid_;
     bool in_kernel_;
     bool returning_from_signal_;
-    bool has_user_uignal_handlers_;
+    mutable bool has_user_uignal_handlers_;
 };
 
 #endif //PTRACE_ALLOC_PROCESS_H

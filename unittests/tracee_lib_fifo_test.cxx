@@ -11,6 +11,7 @@
 #include <unistd.h>     // write
 
 #include <signal.h>     // signal numbers
+#include <sys/ptrace.h>
 
 #include "tracee_lib_fifo_test.h"
 
@@ -21,7 +22,7 @@ std::string getFifoPathForTracee(pid_t tracee_pid){
     return path_buffer.str();
 }
 
-int SendMessageCallback::onSyscallExit(pid_t pid, Ptrace::SyscallExitAction& syscall_action) {
+int SendMessageCallback::onSyscallExitInner(pid_t pid, Ptrace::SyscallExitAction& syscall_action) {
     std::string fifo_path = getFifoPathForTracee(pid);
     int fifo_fd = 0;
     std::stringstream message;
@@ -48,23 +49,24 @@ int SendMessageCallback::onSyscallExit(pid_t pid, Ptrace::SyscallExitAction& sys
         if(fifo_fd > 0){                                                // if open succeeded, write
             SAFE_SYSCALL(write(fifo_fd, message.str().c_str(), message.str().size()));
             SAFE_SYSCALL(close(fifo_fd));
+
             return SIGUSR1;
+            //SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, pid, NULL, SIGUSR1));
         }
                                                         // return SIGUSR1 in order for signal user 1
     }                                                                   // to be injected to tracee
     return 0;
 }
 
-int SendSignalOnMmapCallback::onSyscallExit(pid_t pid, Ptrace::SyscallExitAction& syscall_action) {
+void SendSignalOnMmapCallback::onSyscallExit(pid_t pid, Ptrace::SyscallExitAction& syscall_action) {
 
     const TracedProcess& tracee = syscall_action.getTracee();
 
     if(tracee.returningFromSignal()){
-        return 0;
+        return;
     }
     else if(tracee.hasUserSignalHandlers() && syscall_action.getSyscall().toString() == std::string("mmap")) {
-        return SIGUSR1;
+        //return SIGUSR1;
+        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, pid, NULL, SIGUSR1));
     }
-
-    return 0;
 }

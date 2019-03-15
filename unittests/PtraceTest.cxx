@@ -5,39 +5,27 @@
 
 MockEventCallbacks::MockEventCallbacks() : test_started(false) {}
 
-int MockEventCallbacks::onSyscallEnter(pid_t pid, Ptrace::SyscallEnterAction& action) {
-    /*
+void MockEventCallbacks::onSyscallEnter(pid_t pid, Ptrace::SyscallEnterAction& action) {
     auto& in_syscall = is_inside_kernel[pid];
-
-    if(in_syscall) {
-        throw std::logic_error("Invalid test state, in_syscall == true");
-    }
+    ASSERT_FALSE(in_syscall);
     in_syscall = true;
-    */
+
     if (test_started) {
         onSyscallEnterT(pid, action);
     }
-
-    return 0;
 }
 
-int MockEventCallbacks::onSyscallExit(pid_t pid, Ptrace::SyscallExitAction& action) {
-    /*
+void MockEventCallbacks::onSyscallExit(pid_t pid, Ptrace::SyscallExitAction& action) {
     auto& in_syscall = is_inside_kernel[pid];
-
-    if(!in_syscall) {
-        throw std::logic_error("Invalid test state, in_syscall == false");
-    }
+    ASSERT_TRUE(in_syscall);
     in_syscall = false;
-    */
+
     if (test_started) {
         onSyscallExitT(pid, action);
     }
     if (action.getSyscall() == kill_syscall) {
         test_started = true;
     }
-
-    return 0;
 }
 
 MockEventCallbacks::~MockEventCallbacks() = default;

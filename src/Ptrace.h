@@ -78,8 +78,8 @@ class Ptrace {
         virtual void onTerminate(pid_t, int signal_num) {}
         virtual void onSignal   (pid_t, int signal_num) {}
 
-        virtual int onSyscallEnter(pid_t, SyscallEnterAction&) { return 0;}
-        virtual int onSyscallExit (pid_t, SyscallExitAction&)  { return 0;}
+        virtual void onSyscallEnter(pid_t, SyscallEnterAction&) {}
+        virtual void onSyscallExit (pid_t, SyscallExitAction&)  {}
 
         // Events callbacks
         virtual void onFork(pid_t)      {}
@@ -90,7 +90,7 @@ class Ptrace {
 
     };
 
-    Ptrace(const std::string& executable, char* args[], EventCallbacks&);
+    Ptrace(const std::string& executable, char* args[], EventCallbacks& event_handler, bool load_lib = false);
 
     ~Ptrace();
 

@@ -24,13 +24,13 @@ using std::string;
 #define IS_EVENT(status_, event_) status_>> 8 == (SIGTRAP | event_ << 8)
 
 
-Ptrace::Ptrace(const std::string& executable, char* args[], EventCallbacks& event_handler)
+Ptrace::Ptrace(const std::string& executable, char* args[], EventCallbacks& event_handler, bool load_lib)
         : event_callbacks_(event_handler) {
-    // TODO: add path to tracee library as an argument
-    // FIXME: do we need to do LD_PRELOAD trick after execve for the tracee?
-    char env_var[] = "LD_PRELOAD=/home/mac/CLionProjects/ptrace-alloc/cmake-build-debug/TraceeLib/libtracee_l.so";
 
-    putenv(env_var);
+    if(load_lib) {
+        char env_var[] = "LD_PRELOAD=/home/mac/CLionProjects/ptrace-alloc/cmake-build-debug/TraceeLib/libtracee_l.so";
+        putenv(env_var);
+    }
 
     setUserSignals();  // set up user signal handlers for tracer
 
@@ -167,7 +167,7 @@ void Ptrace::handleTerminatedProcess(int status, ProcessItr waited_process) {
 
 void Ptrace::handleSyscalledProcess(int status, int signal_num, ProcessItr waited_process) {
     pid_t waited_pid = waited_process->first;
-    int signal_to_inject = 0;
+    //int signal_to_inject = 0;
     TracedProcess& process = waited_process->second;
 
     assert(signal_num == (SIGTRAP | PTRACE_O_TRACESYSGOOD_MASK));
@@ -181,34 +181,40 @@ void Ptrace::handleSyscalledProcess(int status, int signal_num, ProcessItr waite
         logger_ << "returned from signal" << Logger::endl;
     }
 
-    if (process.isInsideKernel()) {
-        SyscallEnterAction action(*this, process);
-        signal_to_inject = event_callbacks_.onSyscallEnter(waited_pid, action);
-    } else {
-        SyscallExitAction action(*this, process);
-        signal_to_inject = event_callbacks_.onSyscallExit(waited_pid, action);
-    }
-
-    if(startingReturnFromSignal(process))
+    if(startingReturnFromSignal(process)) {
         process.setReturningFromSignal(true);
-
-    else if(finishingReturnFromSignal(process)){
+    } else if(finishingReturnFromSignal(process)){
         assert(process.returningFromSignal());
         process.setReturningFromSignal(false);
     }
 
-    if(!process.isInsideKernel() && getSyscall(process) == Syscall("kill")){
-        int kill_sig_num = static_cast<int>(SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER,
-                                                                         waited_pid,
-                                                                         REG_OFFSET(rsi))));
-        if(kill_sig_num == 0) {
-//            SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL,
-//                                SIGUSR2)); // send SIGUSER2 to force tracee to create fifo with his pid
-            process.setHasUserSignalHandlers(true);
-            signal_to_inject = SIGUSR2;
-        }
+    if (process.isInsideKernel()) {
+        SyscallEnterAction action(*this, process);
+        event_callbacks_.onSyscallEnter(waited_pid, action);
+    } else {
+        SyscallExitAction action(*this, process);
+        event_callbacks_.onSyscallExit(waited_pid, action);
     }
-    SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, signal_to_inject));
+
+
+//    if(!process.isInsideKernel() && getSyscall(process) == Syscall("kill")){
+//        int kill_sig_num = static_cast<int>(SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER,
+//                                                                         waited_pid,
+//                                                                         REG_OFFSET(rsi))));
+//        if(kill_sig_num == 0) {
+//            process.setHasUserSignalHandlers(true);
+//            signal_to_inject = SIGUSR2;
+//        }
+//    }
+    //SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, signal_to_inject));
+    // FIXME may fail because of ESRCH (tracce was continued before by callback)
+    try{
+        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, 0));
+    } catch(const std::system_error& e){
+        if(e.code().value() != ESRCH)
+            throw e;
+    }
+
 }
 
 void Ptrace::handleSignaledProcess(int status, int signal_num, ProcessItr waited_process) {

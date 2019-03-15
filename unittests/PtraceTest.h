@@ -49,31 +49,27 @@ class MockEventCallbacks : public Ptrace::EventCallbacks {
     ~MockEventCallbacks() override ;
 
     MOCK_METHOD1(onStart        , void(pid_t));
-    MOCK_METHOD1(onFork         , void(pid_t));
-    MOCK_METHOD1(onClone        , void(pid_t));
-    MOCK_METHOD1(onVFork        , void(pid_t));
-    MOCK_METHOD1(onExec        , void(pid_t));
-    MOCK_METHOD1(onVForkDone        , void(pid_t));
     MOCK_METHOD2(onExit         , void(pid_t, int retval));
     MOCK_METHOD2(onSyscallEnterT, void(pid_t, Ptrace::SyscallEnterAction&));
     MOCK_METHOD2(onSyscallExitT , void(pid_t, Ptrace::SyscallExitAction&));
     MOCK_METHOD2(onTerminate    , void(pid_t, int signal_num));
     MOCK_METHOD2(onSignal       , void(pid_t, int signal_num));
 
-    int onSyscallEnter(pid_t pid, Ptrace::SyscallEnterAction& action) override;
+    void onSyscallEnter(pid_t pid, Ptrace::SyscallEnterAction& action) override;
 
-    int onSyscallExit(pid_t pid, Ptrace::SyscallExitAction& action) override;
+    void onSyscallExit(pid_t pid, Ptrace::SyscallExitAction& action) override;
 
   private:
     bool test_started;  // Used to ignore all the syscalls before the first "kill" in the tracee.
-                        // Make the tests much easier to use and easy to express expectations,
-                        //  for example, at the beginning there is a syscall-enter->exit loop of
-                        //  unknown iterations, and it is hard (impossible?) to express it properly
-                        //  and keeping it encapsulated.
-                        // Another way to solve this issue instead of this hack is to reset
-                        //  expectations on the first "kill" with "Mock::VerifyAndClearExpectations()".
+    // Make the tests much easier to use and easy to express expectations,
+    //  for example, at the beginning there is a syscall-enter->exit loop of
+    //  unknown iterations, and it is hard (impossible?) to express it properly
+    //  and keeping it encapsulated.
+    // Another way to solve this issue instead of this hack is to reset
+    //  expectations on the first "kill" with "Mock::VerifyAndClearExpectations()".
     std::unordered_map<pid_t, bool> is_inside_kernel;
 };
+
 
 class PtraceTest : public testing::Test {
   protected:

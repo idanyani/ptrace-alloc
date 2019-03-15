@@ -19,7 +19,6 @@ int main(){
                                        MAP_PRIVATE | MAP_ANONYMOUS,
                                        -1,
                                        0);
-    printf("AFTER EXEC\n");
     printf("%d\n", address);
     execv("/bin/date", args);
 

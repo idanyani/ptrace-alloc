@@ -12,6 +12,9 @@
 #include <fcntl.h>      // open
 #include <cassert>
 #include <cstring>      // strerror
+#include <sys/ptrace.h>
+#include <sys/user.h>   // struct user
+#include <cstddef>      // offsetof
 
 #include "tracee_lib.h"
 #include "tracee_server.h"
@@ -140,3 +143,63 @@ void create_fifo(int signal_handler_arg){
     }
 }
 
+void TraceeLibEventCallbacks::onSyscallExit(pid_t pid, Ptrace::SyscallExitAction& syscall_action) {
+    int signal_to_inject;
+    const TracedProcess& process = syscall_action.getTracee();
+
+    // FIXME:: maybe move down
+    signal_to_inject = onSyscallExitInner(pid, syscall_action);
+
+    if(!process.isInsideKernel() && syscall_action.getSyscall() == Syscall("kill")){
+        int kill_sig_num = static_cast<int>(SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER,
+                                                                     process.pid(),
+                                                                     offsetof(struct user,
+                                                                             regs.rsi))));
+        if(kill_sig_num == 0) {
+            process.setHasUserSignalHandlers(true);
+
+            signal_to_inject = SIGUSR2;
+        }
+    }
+    SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, pid, NULL, signal_to_inject));
+}
+
+void TraceeLibEventCallbacks::onStart(pid_t pid) {
+    EventCallbacks::onStart(pid);
+}
+
+void TraceeLibEventCallbacks::onExit(pid_t pid, int retval) {
+    EventCallbacks::onExit( pid , retval);
+}
+
+void TraceeLibEventCallbacks::onTerminate(pid_t pid, int signal_num) {
+    EventCallbacks::onTerminate( pid , signal_num);
+}
+
+void TraceeLibEventCallbacks::onSignal(pid_t pid, int signal_num) {
+    EventCallbacks::onSignal(pid, signal_num);
+}
+
+void TraceeLibEventCallbacks::onSyscallEnter(pid_t pid, Ptrace::SyscallEnterAction& syscall_action) {
+    return EventCallbacks::onSyscallEnter( pid , syscall_action);
+}
+
+void TraceeLibEventCallbacks::onFork(pid_t pid) {
+    EventCallbacks::onFork(pid);
+}
+
+void TraceeLibEventCallbacks::onVFork(pid_t pid) {
+    EventCallbacks::onVFork(pid);
+}
+
+void TraceeLibEventCallbacks::onVForkDone(pid_t pid) {
+    EventCallbacks::onVForkDone(pid);
+}
+
+void TraceeLibEventCallbacks::onClone(pid_t pid) {
+    EventCallbacks::onClone(pid);
+}
+
+void TraceeLibEventCallbacks::onExec(pid_t pid) {
+    EventCallbacks::onExec(pid);
+}
