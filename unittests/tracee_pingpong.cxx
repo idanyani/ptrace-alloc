@@ -11,28 +11,14 @@
 #include <signal.h>
 #include <iostream>
 
-int checkSignalHandler;
+#include "tracee_server.h"
 
-void userSignalHandler(int n){
-    std::cout << "userSignalHandler called" << std::endl;
-    checkSignalHandler = 1;
-}
-
-void traceeUserSignallAction(){
-
-}
+extern TraceeServer tracee_server;
 
 int main(int argc, char** argv){
     assert(argc > 1);
     std::string arg(argv[1]);
     int num = std::stoi(arg), address;
-    // FIXME: set signal handler
-
-    struct sigaction action;
-    action.sa_handler = userSignalHandler;
-    sigemptyset (&action.sa_mask);
-    action.sa_flags = 0;
-    sigaction (SIGUSR1, &action, NULL);
 
     address = (intptr_t) mmap(NULL,
                                        4,
@@ -41,7 +27,7 @@ int main(int argc, char** argv){
                                        -1,
                                        0);
 
-    assert(checkSignalHandler == 1);
+    //assert(tracee_server.getTestMember());
 
     if(address) ;
 

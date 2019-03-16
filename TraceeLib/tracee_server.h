@@ -19,6 +19,7 @@
      void assertTestMember();
      void deassertTestMember();
 
+     int getTestMember() const;
    private:
      int test_member_;
 };

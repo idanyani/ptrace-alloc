@@ -18,9 +18,8 @@
 
 #include "tracee_lib.h"
 #include "tracee_lib_defines.h"
-#include "tracee_server_instance.h"
 
-extern TraceeServer tracee_server;
+TraceeServer tracee_server;
 
 void allocate_handler(int signal_handler_arg);
 void create_fifo(int signal_handler_arg);
