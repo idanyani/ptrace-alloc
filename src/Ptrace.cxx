@@ -25,21 +25,23 @@ using std::string;
 
 
 Ptrace::Ptrace(const std::string& executable, char* args[], EventCallbacks& event_handler, bool load_lib)
-        : event_callbacks_(event_handler) {
-
-    if(load_lib) {
+        : event_callbacks_(event_handler), load_lib_(load_lib) {
+    // TODO: add path to tracee library as an argument
+    // FIXME: do we need to do LD_PRELOAD trick after execve for the tracee?
+    if(load_lib_) {
         char env_var[] = "LD_PRELOAD=/home/mac/CLionProjects/ptrace-alloc/cmake-build-debug/TraceeLib/libtracee_l.so";
         putenv(env_var);
+
+        setUserSignals();  // set up user signal handlers for tracer
+
+        try {
+            SAFE_SYSCALL(mkdir("/tmp/ptrace_fifo", 0777)); // create directory for tracee fifo's
+        } catch(const std::system_error& e){
+            if(e.code().value() != EEXIST) // if /tmp/ptrace_fifo already exists, resume the execution as normal
+                throw e;
+        }
     }
 
-    setUserSignals();  // set up user signal handlers for tracer
-
-    try {
-        SAFE_SYSCALL(mkdir("/tmp/ptrace_fifo", 0777)); // create directory for tracee fifo's
-    } catch(const std::system_error& e){
-        if(e.code().value() != EEXIST) // if /tmp/ptrace_fifo already exists, resume the execution as normal
-            throw e;
-    }
     pid_t tracee_pid = SAFE_SYSCALL(fork());
 
     if (tracee_pid == 0) { // child process
@@ -91,7 +93,7 @@ void Ptrace::startTracing() {
             //logger_ << "\nDBG : " << status << " " << strsignal(signal_num) << logger_.endl;
             if (isSyscallStop(signal_num))
                 handleSyscalledProcess(status, signal_num, process_iter);
-             else
+            else
                 handleSignaledProcess(status, signal_num, process_iter);
 
         } else
@@ -167,7 +169,7 @@ void Ptrace::handleTerminatedProcess(int status, ProcessItr waited_process) {
 
 void Ptrace::handleSyscalledProcess(int status, int signal_num, ProcessItr waited_process) {
     pid_t waited_pid = waited_process->first;
-    //int signal_to_inject = 0;
+    int signal_to_inject = 0;
     TracedProcess& process = waited_process->second;
 
     assert(signal_num == (SIGTRAP | PTRACE_O_TRACESYSGOOD_MASK));
@@ -177,46 +179,39 @@ void Ptrace::handleSyscalledProcess(int status, int signal_num, ProcessItr waite
     if(!process.returningFromSignal()) {
         logger_ << "syscalled" << " with \"" << getSyscall(process)
                 << "\"; " << (process.isInsideKernel() ? "Enter" : "Exit") << Logger::endl;
-
-        if(startingReturnFromSignal(process)) {
-            process.setReturningFromSignal(true);
-        }
-
-        if (process.isInsideKernel()) {
-            SyscallEnterAction action(*this, process);
-            event_callbacks_.onSyscallEnter(waited_pid, action);
-        } else {
-            SyscallExitAction action(*this, process);
-            event_callbacks_.onSyscallExit(waited_pid, action);
-        }
     } else {
         logger_ << "returned from signal" << Logger::endl;
+    }
 
-        if(finishingReturnFromSignal(process)){
-            assert(process.returningFromSignal());
-            process.setReturningFromSignal(false);
+    if (process.isInsideKernel()) {
+        SyscallEnterAction action(*this, process);
+        signal_to_inject = event_callbacks_.onSyscallEnter(waited_pid, action);
+    } else {
+        SyscallExitAction action(*this, process);
+        signal_to_inject = event_callbacks_.onSyscallExit(waited_pid, action);
+    }
+
+    if(startingReturnFromSignal(process))
+        process.setReturningFromSignal(true);
+
+    else if(finishingReturnFromSignal(process)){
+        assert(process.returningFromSignal());
+        process.setReturningFromSignal(false);
+    }
+
+    if(load_lib_){
+
+        if(!process.isInsideKernel() && getSyscall(process) == Syscall("kill")){
+            int kill_sig_num = static_cast<int>(SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER,
+                                                                             waited_pid,
+                                                                             REG_OFFSET(rsi))));
+            if(kill_sig_num == 0) {
+                process.setHasUserSignalHandlers(true);
+                signal_to_inject = SIGUSR2;
+            }
         }
     }
-    //logger_ << "Is kernel " << process.isInsideKernel() << " returning from signal " << process.returningFromSignal() << logger_.endl;
-
-//    if(!process.isInsideKernel() && getSyscall(process) == Syscall("kill")){
-//        int kill_sig_num = static_cast<int>(SAFE_SYSCALL_BY_ERRNO(ptrace(PTRACE_PEEKUSER,
-//                                                                         waited_pid,
-//                                                                         REG_OFFSET(rsi))));
-//        if(kill_sig_num == 0) {
-//            process.setHasUserSignalHandlers(true);
-//            signal_to_inject = SIGUSR2;
-//        }
-//    }
-    //SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, signal_to_inject));
-    // FIXME may fail because of ESRCH (tracce was continued before by callback)
-    try{
-        SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, 0));
-    } catch(const std::system_error& e){
-        if(e.code().value() != ESRCH)
-            throw e;
-    }
-
+    SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, signal_to_inject));
 }
 
 void Ptrace::handleSignaledProcess(int status, int signal_num, ProcessItr waited_process) {
@@ -285,8 +280,8 @@ void Ptrace::handleNewBornProcess(pid_t waited_pid) {
 
     // after the newborn has stopped, we can now set the correct options
     auto flags = PTRACE_O_TRACESYSGOOD | PTRACE_O_TRACEFORK |
-                    PTRACE_O_TRACEVFORK | PTRACE_O_TRACEVFORKDONE |
-                    PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC;
+                 PTRACE_O_TRACEVFORK | PTRACE_O_TRACEVFORKDONE |
+                 PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC;
     SAFE_SYSCALL(ptrace(PTRACE_SETOPTIONS, waited_pid, NULL, flags));
     SAFE_SYSCALL(ptrace(PTRACE_SYSCALL, waited_pid, NULL, 0));
 }
@@ -301,4 +296,3 @@ bool Ptrace::finishingReturnFromSignal(const TracedProcess& process) {
                                                                  REG_OFFSET(orig_rax))));
     return (!process.isInsideKernel() && process.returningFromSignal() && orig_rax < 0);
 }
-

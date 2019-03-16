@@ -7,11 +7,10 @@
 #include <unistd.h>
 #include <cstring>
 #include <sys/mman.h>
-//#include <bits/sigaction.h>
+
 #include <signal.h>
 #include <iostream>
-
-#include "tracee_server.h"
+#include <tracee_server.h>
 
 extern TraceeServer tracee_server;
 
@@ -19,15 +18,17 @@ int main(int argc, char** argv){
     assert(argc > 1);
     std::string arg(argv[1]);
     int num = std::stoi(arg), address;
+    // FIXME: set signal handler
+
 
     address = (intptr_t) mmap(NULL,
-                                       4,
-                                       PROT_READ | PROT_WRITE,
-                                       MAP_PRIVATE | MAP_ANONYMOUS,
-                                       -1,
-                                       0);
+                              4,
+                              PROT_READ | PROT_WRITE,
+                              MAP_PRIVATE | MAP_ANONYMOUS,
+                              -1,
+                              0);
 
-    //assert(tracee_server.getTestMember());
+    assert(tracee_server.getTestMember() == 1);
 
     if(address) ;
 
@@ -42,4 +43,3 @@ int main(int argc, char** argv){
 
     return 0;
 }
-

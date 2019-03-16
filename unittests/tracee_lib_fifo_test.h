@@ -4,28 +4,23 @@
 
 #include "Ptrace.h"
 #include "PtraceTest.h"
-#include "tracee_lib_test.h"
 
 #ifndef PTRACE_ALLOC_TRACEE_LIB_FIFO_TEST_H
 #define PTRACE_ALLOC_TRACEE_LIB_FIFO_TEST_H
 
 
-class SendMessageCallback : public TraceeLibMockEventCallbacks {
+class SendMessageCallback : public MockEventCallbacks {
 
   public:
-    SendMessageCallback(std::string sys_call_name) : message_sys_call_name(sys_call_name) {}
+    SendMessageCallback(int command, std::string sys_call_name) : command_(command), message_sys_call_name(sys_call_name) {}
 
-  protected:
-    virtual int onSyscallExitInner (pid_t, Ptrace::SyscallExitAction&) override;
+    virtual int onSyscallExit (pid_t, Ptrace::SyscallExitAction&)  override;
 
   private:
+    int command_;
     std::string message_sys_call_name;
 };
 
-class SendSignalOnMmapCallback : public MockEventCallbacks {
-  public:
-    virtual void onSyscallExit (pid_t, Ptrace::SyscallExitAction&)  override;
-};
 
 
 #endif //PTRACE_ALLOC_TRACEE_LIB_FIFO_TEST_H

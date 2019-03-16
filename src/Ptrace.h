@@ -5,7 +5,6 @@
 #include <stdexcept>
 #include <sys/types.h>
 #include <set>
-//#include <bits/unordered_map.h>
 #include <unordered_map>
 
 #include "Syscall.h"
@@ -73,13 +72,13 @@ class Ptrace {
         virtual ~EventCallbacks() = default;
 
         virtual void onStart    (pid_t) {} // TODO: inform if this is a forked or cloned child?
-                                           // TODO: inform the parend pid?
+        // TODO: inform the parend pid?
         virtual void onExit     (pid_t, int retval)     {}
         virtual void onTerminate(pid_t, int signal_num) {}
         virtual void onSignal   (pid_t, int signal_num) {}
 
-        virtual void onSyscallEnter(pid_t, SyscallEnterAction&) {}
-        virtual void onSyscallExit (pid_t, SyscallExitAction&)  {}
+        virtual int onSyscallEnter(pid_t, SyscallEnterAction&) { return 0;}
+        virtual int onSyscallExit (pid_t, SyscallExitAction&)  { return 0;}
 
         // Events callbacks
         virtual void onFork(pid_t)      {}
@@ -126,6 +125,8 @@ class Ptrace {
     bool isSyscallStop(int sig_num);
     bool startingReturnFromSignal(const TracedProcess& process);
     bool finishingReturnFromSignal(const TracedProcess& process);
+
+    bool load_lib_;
 
 };
 

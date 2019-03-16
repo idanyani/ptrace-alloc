@@ -37,4 +37,3 @@ void TraceeServer::deassertTestMember() {
 int TraceeServer::getTestMember() const {
     return test_member_;
 }
-
