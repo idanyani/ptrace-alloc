@@ -15,7 +15,7 @@ static const Syscall write_syscall("write");
 
 /// a matcher to be able to match onSyscall*() with a specific syscall
 template <typename SyscallAction>
-  class SyscallEqMatcher : public ::testing::MatcherInterface<SyscallAction&> {
+class SyscallEqMatcher : public ::testing::MatcherInterface<SyscallAction&> {
   public:
     explicit
     SyscallEqMatcher(Syscall syscall) : syscall_(syscall) {}
@@ -49,15 +49,20 @@ class MockEventCallbacks : public Ptrace::EventCallbacks {
     ~MockEventCallbacks() override ;
 
     MOCK_METHOD1(onStart        , void(pid_t));
+    MOCK_METHOD1(onFork         , void(pid_t));
+    MOCK_METHOD1(onClone        , void(pid_t));
+    MOCK_METHOD1(onVFork        , void(pid_t));
+    MOCK_METHOD1(onExec        , void(pid_t));
+    MOCK_METHOD1(onVForkDone        , void(pid_t));
     MOCK_METHOD2(onExit         , void(pid_t, int retval));
     MOCK_METHOD2(onSyscallEnterT, void(pid_t, Ptrace::SyscallEnterAction&));
     MOCK_METHOD2(onSyscallExitT , void(pid_t, Ptrace::SyscallExitAction&));
     MOCK_METHOD2(onTerminate    , void(pid_t, int signal_num));
     MOCK_METHOD2(onSignal       , void(pid_t, int signal_num));
 
-    void onSyscallEnter(pid_t pid, Ptrace::SyscallEnterAction& action) override;
+    int onSyscallEnter(pid_t pid, Ptrace::SyscallEnterAction& action) override;
 
-    void onSyscallExit(pid_t pid, Ptrace::SyscallExitAction& action) override;
+    int onSyscallExit(pid_t pid, Ptrace::SyscallExitAction& action) override;
 
   private:
     bool test_started;  // Used to ignore all the syscalls before the first "kill" in the tracee.
@@ -69,7 +74,6 @@ class MockEventCallbacks : public Ptrace::EventCallbacks {
     //  expectations on the first "kill" with "Mock::VerifyAndClearExpectations()".
     std::unordered_map<pid_t, bool> is_inside_kernel;
 };
-
 
 class PtraceTest : public testing::Test {
   protected:
