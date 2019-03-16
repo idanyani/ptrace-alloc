@@ -2,33 +2,35 @@
 // Created by mac on 3/8/19.
 //
 
+#include <unistd.h>
+
 #include "tracee_server.h"
+#include "tracee_lib_defines.h"
 
 
-void TraceeServer::serveRequest() {
-    std::cout << "Serve request called" << std::endl;
+void TraceeServer::serveRequest(int fd) {
+
+    char command_type_str[64];
+    TRACEE_SAFE_SYSCALL(read(fd, command_type_str, 64));
+
+    std::string command_type_wrap(command_type_str);
+
+    Command command = static_cast<Command>(stoi(command_type_wrap));
+
+    switch(command){
+        case Command::ALLOCATE_MEMORY     :   ;                     break;
+        case Command::READ_FROM_FIFO      :   ;                     break;
+        case Command::ASSERT_TEST_MEMBER  : assertTestMember();     break;
+        case Command::DEASSERT_TETS_MEMBER: deassertTestMember();   break;
+    }
+
 }
 
-int TraceeServer::getFifoFd() const {
-    return fifo_fd_;
+void TraceeServer::assertTestMember() {
+    test_member_ = 1;
 }
 
-const std::string& TraceeServer::getFifoPath() const {
-    return fifo_path_;
+void TraceeServer::deassertTestMember() {
+    test_member_ = 0;
 }
 
-void TraceeServer::setFifoFd(int fifo_fd) {
-    fifo_fd_ = fifo_fd;
-}
-
-void TraceeServer::setFifoPath(const std::string& fifo_path) {
-    fifo_path_ = std::string(fifo_path);
-}
-
-pid_t TraceeServer::getPid() const {
-    return tracee_pid_;
-}
-
-void TraceeServer::setPid(pid_t pid) {
-    tracee_pid_ = pid;
-}

@@ -9,7 +9,6 @@
 int main(int argc, char **argv){
 
     char buffer[256];
-    char* args[] = {"tracee_basic", 0};
 
     getcwd(buffer, 256);
     intptr_t address = (intptr_t) mmap(NULL,
@@ -20,11 +19,6 @@ int main(int argc, char **argv){
                     0);
 
     printf("%d\n", address);
-    if(argc > 1 && !strcmp(argv[1], "1")) {
-        printf("BEFORE EXEC\n");
-        execv("./tracee_basic", args);
-    }
-
     return 0;
 }
 

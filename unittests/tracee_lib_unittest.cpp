@@ -99,14 +99,12 @@ TEST(TraceeLibTest, ForkTest){
 
 }
 
-TEST(TraceeLibTest, FifoBasicTest){                     // FIXME: make TraceeServer to accepr fifo messages
-//    MockEventCallbacks mock_event_callbacks;
+TEST(TraceeLibTest, FifoBasicTest){
     SendMessageCallback send_message_callbacks(std::string("getcwd"));
 
-    char* args[] = {const_cast<char*>("./tracee_fifo"), const_cast<char*>("0"), nullptr};
+    char* args[] = {const_cast<char*>("./tracee_fifo"), nullptr};
     std::unique_ptr<Ptrace> p_ptrace = initPtrace(args, send_message_callbacks);
 
-    //p_ptrace->setLoggerVerbosity(Logger::Verbosity::OFF);
 
 
     EXPECT_CALL(send_message_callbacks,
@@ -140,19 +138,10 @@ TEST(TraceeLibTest, FifoBasicTest){                     // FIXME: make TraceeSer
                 onExit(_,_))
             .Times(Exactly(1));
 
-
-//    EXPECT_CALL(send_message_callbacks,
-//                onSyscallExitT(_, SyscallEq<Ptrace::SyscallEnterAction>(Syscall("read"))))
-//            .Times(AtLeast(1));
-
     p_ptrace->startTracing();
 
 
 }
-
-
-
-
 
 
 //TEST(TraceeLibTest, SignalHandlersSurviveAfterExecveTest){          // FIXME make this taste use TraceeServer class

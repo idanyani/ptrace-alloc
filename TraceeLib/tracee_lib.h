@@ -7,15 +7,15 @@
 
 #include <string>
 #include <memory>
-#include "Ptrace.h"
 
+#include "Ptrace.h"
+#include "tracee_server.h"
+
+void setUserSignals();
 
 class TraceeLibEventCallbacks : public Ptrace::EventCallbacks {
 
   public:
-        //TraceeLibEventCallbacks(std::shared_ptr<Ptrace> ptrace_ptr) :
-    //virtual int onSyscallExit (pid_t, Ptrace::SyscallExitAction&) override;
-
     TraceeLibEventCallbacks() = default;
     virtual ~TraceeLibEventCallbacks() = default;
 
@@ -38,13 +38,6 @@ class TraceeLibEventCallbacks : public Ptrace::EventCallbacks {
   protected:
     virtual int onSyscallExitInner(pid_t, Ptrace::SyscallExitAction&) { return 0; };
 
-  private:
-    //std::shared_ptr<Ptrace> ptrace_ptr_;
-
 };
-
-
-void setUserSignals();
-
 
 #endif //PTRACE_ALLOC_TRACEE_LIB_H

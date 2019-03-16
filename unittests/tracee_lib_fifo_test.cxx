@@ -34,8 +34,8 @@ int SendMessageCallback::onSyscallExitInner(pid_t pid, Ptrace::SyscallExitAction
     else if(tracee.hasUserSignalHandlers() && syscall_action.getSyscall().toString() == message_sys_call_name) {
         try {
             std::cout << "Sending message to tracee" << std::endl;
-            message << "Message for tracee with pid " << pid  << '\0';
-//            fifo_fd = SAFE_SYSCALL(open(fifo_path.c_str(), O_NONBLOCK | O_WRONLY)); // FIXME
+            //message << "Message for tracee with pid " << pid  << '\0';
+            message << 0;
             fifo_fd = SAFE_SYSCALL(open(fifo_path.c_str(), O_NONBLOCK | O_RDWR));
         } catch(const std::system_error& e){
             fifo_fd = 0;

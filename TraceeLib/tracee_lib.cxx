@@ -17,14 +17,17 @@
 #include <cstddef>      // offsetof
 
 #include "tracee_lib.h"
-#include "tracee_server.h"
+#include "tracee_lib_defines.h"
+#include "tracee_server_instance.h"
+
+extern TraceeServer tracee_server;
 
 void allocate_handler(int signal_handler_arg);
 void create_fifo(int signal_handler_arg);
 
 int fifo_fd;
 char fifo_path[80];
-TraceeServer tracee_server;
+
 
 int traceeHandleSyscallReturnValue(int syscall_return_value, unsigned int code_line) {
     if (syscall_return_value < 0) {
@@ -35,10 +38,6 @@ int traceeHandleSyscallReturnValue(int syscall_return_value, unsigned int code_l
     }
     return syscall_return_value;
 }
-
-#define TRACEE_SAFE_SYSCALL(syscall) \
-({int _ret_val = traceeHandleSyscallReturnValue(syscall, __LINE__); _ret_val;})
-
 
 void setUserSignals(){
     struct sigaction allocate_action, create_fifo_action;
@@ -63,8 +62,7 @@ __attribute__((constructor)) void tracee_begin(){
 
     pid_t tracee_pid = getpid();
     printf("Tracee lib constructor called for pid=%d\n", tracee_pid);
-    
-    tracee_server.setPid(tracee_pid);
+
     setUserSignals();
 
     TRACEE_SAFE_SYSCALL(kill(tracee_pid, 0));
@@ -72,12 +70,10 @@ __attribute__((constructor)) void tracee_begin(){
 
 __attribute__((destructor)) void tracee_end(){
 
-    printf("Tracee lib destructor called for pid=%d\n", tracee_server.getPid());
+    pid_t tracee_pid = getpid();
+    printf("Tracee lib destructor called for pid=%d\n", tracee_pid);
 
-    int fifo_fd = tracee_server.getFifoFd();
-    const char* fifo_path_ptr = tracee_server.getFifoPath().c_str();
-
-    int fifo_exists = access(fifo_path_ptr, F_OK);
+    int fifo_exists = access(fifo_path, F_OK);
 
     if(fifo_exists == 0) {
         struct stat fifo_stat;
@@ -94,19 +90,18 @@ __attribute__((destructor)) void tracee_end(){
 
 void allocate_handler(int signal_handler_arg){
 
-    //traceeUserSignallAction();
-    char message_buff[64];
+//    char message_buff[64];
+//
+//    printf("allocate_handler\n");
+//    if(fifo_fd > 0) {
+//        TRACEE_SAFE_SYSCALL(read(fifo_fd, message_buff, 64));
+//        printf("allocate_handler message: %s\n", message_buff);
+//    } else {
+//        printf("file isn't open: %s\n", message_buff);
+//        assert(false);
+//    }
 
-    printf("allocate_handler\n");
-    if(fifo_fd > 0) {
-        TRACEE_SAFE_SYSCALL(read(fifo_fd, message_buff, 64));
-        printf("allocate_handler message: %s\n", message_buff);
-    } else {
-        printf("file isn't open: %s\n", message_buff);
-        assert(false);
-    }
-
-    //tracee_server.serveRequest();
+    tracee_server.serveRequest(fifo_fd);
 }
 
 /*
@@ -120,8 +115,9 @@ void create_fifo(int signal_handler_arg){
 
     char pid_str[20];
     int fifo_exists;
+    pid_t pid = getpid();
 
-    sprintf(pid_str, "%d", tracee_server.getPid());
+    sprintf(pid_str, "%d", pid);
 
     strcpy(fifo_path, "/tmp/ptrace_fifo/");
     strcat(fifo_path, pid_str);
@@ -131,7 +127,7 @@ void create_fifo(int signal_handler_arg){
     if(fifo_exists < 0 && errno == ENOENT) {            // if FIFO has not been created yet for the process, create it
         TRACEE_SAFE_SYSCALL(mkfifo(fifo_path, 0666));
         printf("FIFO for pid=%d has not been created yet, creating a new FIFO at path %s\n",
-               tracee_server.getPid(),
+               pid,
                fifo_path);
     }
     if( fifo_fd == 0 ){                                 // assume that we never open FIFO at fd = 0
@@ -139,7 +135,7 @@ void create_fifo(int signal_handler_arg){
 
         fifo_fd = TRACEE_SAFE_SYSCALL(open(fifo_path, O_RDWR | O_NONBLOCK));
         printf("FIFO is now opened for pid=%d, file descriptors's index is %d\n",
-               tracee_server.getPid(),
+               pid,
                fifo_fd);
     }
 }

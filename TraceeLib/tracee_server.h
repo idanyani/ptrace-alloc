@@ -12,23 +12,15 @@
  */
  class TraceeServer{
   public:
-    enum class Command { ALLOCATE_MEMORY, READ_FROM_FIFO /*...*/ };
-    //void serveRequest(Command command_to_execute, int command_argument); // FIXME: use serveCommand that accepts parameters
-    void serveRequest();
+     TraceeServer() : test_member_(0) {}
+     enum Command { ALLOCATE_MEMORY, READ_FROM_FIFO, ASSERT_TEST_MEMBER, DEASSERT_TETS_MEMBER /*...*/ };
+     void serveRequest(int fd);
 
-    pid_t getPid() const;
-    int getFifoFd() const;
-    const std::string& getFifoPath() const;
+     void assertTestMember();
+     void deassertTestMember();
 
-    void setPid(pid_t pid);
-    void setFifoFd(int fifo_fd);
-    void setFifoPath(const std::string& fifo_path);
-
-  private:
-     pid_t tracee_pid_;
-     int fifo_fd_;
-     std::string fifo_path_;
-
+   private:
+     int test_member_;
 };
 
 #endif //PTRACE_ALLOC_TRACEE_SERVER_H
