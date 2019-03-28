@@ -82,25 +82,13 @@ __attribute__((destructor)) void tracee_end(){
         TRACEE_SAFE_SYSCALL(unlink(fifo_path));
     }
 }
+
 /*
  * siguser1_handler
  * reads from fifo data sent by tracer
  * allocates memory
  * */
-
 void allocate_handler(int signal_handler_arg){
-
-//    char message_buff[64];
-//
-//    printf("allocate_handler\n");
-//    if(fifo_fd > 0) {
-//        TRACEE_SAFE_SYSCALL(read(fifo_fd, message_buff, 64));
-//        printf("allocate_handler message: %s\n", message_buff);
-//    } else {
-//        printf("file isn't open: %s\n", message_buff);
-//        assert(false);
-//    }
-
     tracee_server.serveRequest(fifo_fd);
 }
 
@@ -110,7 +98,6 @@ void allocate_handler(int signal_handler_arg){
  * needed for case when new process doesn't call to execve
  * if that case, the handler is inherited from it's parent
  * */
-
 void create_fifo(int signal_handler_arg){
 
     char pid_str[20];
